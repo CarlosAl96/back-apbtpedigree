@@ -10,5 +10,5 @@ app.get("/users", userAuthenticated, userController.index);
 app.get("/users/:id", userAuthenticated, userController.readUser);
 app.post("/users/auth", userController.login);
 app.post("/users/store", userController.store);
-app.post("/users/logout", userController.logout);
+app.post("/users/logout", userAuthenticated, userController.logout);
 module.exports = app;

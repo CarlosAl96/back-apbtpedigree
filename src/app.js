@@ -9,6 +9,7 @@ const app = express();
 const httpServer = require("http").createServer(app);
 
 const usersRoutes = require("./routes/user");
+const pedigreesRoutes = require("./routes/pedigree");
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -23,5 +24,6 @@ app.use((req, res, next) => {
 const basePath = `/${API_NAME}/${API_VERSION}`;
 
 app.use(basePath, usersRoutes);
+app.use(basePath, pedigreesRoutes);
 
 module.exports = httpServer;

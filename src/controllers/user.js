@@ -55,51 +55,57 @@ module.exports = {
     });
   },
   store: async (req, res) => {
-    User.getByUsername(req.con, req.body.username, (error, row) => {
-      if (error) {
-        res.status(500).send({
-          response: "Ha ocurrido un error registrando al usuario: " + error,
+    try {
+      const userByUsername = await new Promise((resolve, reject) => {
+        User.getByUsername(req.con, req.body.username, (error, row) => {
+          if (error) return reject(error);
+          resolve(row);
         });
-      }
-      if (row.length > 0) {
-        res.status(500).send({
+      });
+
+      if (userByUsername.length > 0) {
+        return res.status(400).send({
           response: {
             msg: "Ya está registrado este nombre de usuario",
             error: "username",
           },
         });
       }
-    });
 
-    User.getByEmail(req.con, req.body.email, (error, row) => {
-      if (error) {
-        res.status(500).send({
-          response: "Ha ocurrido un error registrando al usuario: " + error,
+      const userByEmail = await new Promise((resolve, reject) => {
+        User.getByEmail(req.con, req.body.email, (error, row) => {
+          if (error) return reject(error);
+          resolve(row);
         });
-      }
-      if (row.length > 0) {
-        res.status(500).send({
+      });
+
+      if (userByEmail.length > 0) {
+        return res.status(400).send({
           response: { msg: "Ya está registrado este correo", error: "email" },
         });
       }
-    });
 
-    const genSalt = await bcrypt.genSalt(10);
-    req.body.password = await bcrypt.hash(req.body.password, genSalt);
-    req.body.ip = req.ip || req.ips;
+      const genSalt = await bcrypt.genSalt(10);
+      req.body.password = await bcrypt.hash(req.body.password, genSalt);
+      req.body.ip = req.ip || req.ips;
 
-    console.log(req.body);
+      console.log(req.body);
 
-    User.saveUser(req.con, req.body, async (error, result) => {
-      if (error) {
-        res.status(500).send({
-          response: "Ha ocurrido un error registrando al usuario: " + error,
+      const savedUser = await new Promise((resolve, reject) => {
+        User.saveUser(req.con, req.body, (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
         });
-      } else {
-        console.log(result);
-        res.status(200).send({ response: result });
-      }
-    });
+      });
+
+      res.status(200).send({ response: savedUser });
+    } catch (error) {
+      console.error(error);
+      res.status(500).send({
+        response:
+          "Ha ocurrido un error registrando al usuario: " + error.message,
+      });
+    }
   },
   login: (req, res) => {
     const { username, password } = req.body;
