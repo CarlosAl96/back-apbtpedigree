@@ -1,5 +1,7 @@
 const Pedigree = require("../models/pedigree");
 const User = require("../models/user");
+const { removeFile } = require("../utils/dir");
+const { decodeToken } = require("../utils/jwt");
 
 module.exports = {
   index: async (req, res) => {
@@ -65,6 +67,7 @@ module.exports = {
             response: "Ha ocurrido un error listando los pedigrees: " + error,
           });
         } else {
+          console.log(pedigreesCount);
           res
             .status(200)
             .send({ response: { data: rows, totalRows: pedigreesCount } });
@@ -77,12 +80,19 @@ module.exports = {
   },
   getById: async (req, res) => {
     const { id } = req.params;
-    console.log(id);
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
         (rows) => rows[0]
       );
+
+      Pedigree.updateViewsCount(req.con, id, (error, rows) => {
+        if (error) {
+          console.log(error);
+        } else {
+          console.log(rows);
+        }
+      });
 
       let generation1 = [];
       let generation2 = [];
@@ -168,64 +178,60 @@ module.exports = {
   getLogs: async (req, res) => {},
 
   store: async (req, res) => {
-    try {
-      const userByUsername = await new Promise((resolve, reject) => {
-        User.getByUsername(req.con, req.body.username, (error, row) => {
-          if (error) return reject(error);
-          resolve(row);
-        });
-      });
+    console.log(req.body);
 
-      if (userByUsername.length > 0) {
-        return res.status(400).send({
-          response: {
-            msg: "Ya está registrado este nombre de usuario",
-            error: "username",
-          },
-        });
-      }
+    req.body.img = "";
 
-      const userByEmail = await new Promise((resolve, reject) => {
-        User.getByEmail(req.con, req.body.email, (error, row) => {
-          if (error) return reject(error);
-          resolve(row);
-        });
-      });
-
-      if (userByEmail.length > 0) {
-        return res.status(400).send({
-          response: { msg: "Ya está registrado este correo", error: "email" },
-        });
-      }
-
-      const genSalt = await bcrypt.genSalt(10);
-      req.body.password = await bcrypt.hash(req.body.password, genSalt);
-      req.body.ip = req.ip || req.ips;
-
-      console.log(req.body);
-
-      const savedUser = await new Promise((resolve, reject) => {
-        User.saveUser(req.con, req.body, (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        });
-      });
-
-      res.status(200).send({ response: savedUser });
-    } catch (error) {
-      console.error(error);
-      res.status(500).send({
-        response:
-          "Ha ocurrido un error registrando al usuario: " + error.message,
-      });
+    if (req.file) {
+      req.body.img = req.file.filename;
     }
+
+    console.log(req.body);
+
+    Pedigree.savePedigree(req.con, req.body, (error, rows) => {
+      if (error) {
+        if (req.body.img) {
+          removeFile(`pedigrees/${req.body.img}`);
+        }
+        res.status(500).send({
+          response:
+            "Ha ocurrido un error guardando el pedigree, error: " + error,
+        });
+      } else {
+        res.status(200).send({ response: rows });
+      }
+    });
   },
 
-  update: (req, res) => {},
+  update: (req, res) => {
+    const { id } = req.params;
+    console.log(req.body);
+
+    if (req.file) {
+      req.body.img = req.file.filename;
+      if (req.body.old_img) {
+        removeFile(`pedigrees/${req.body.old_img}`);
+      }
+    }
+
+    Pedigree.updatePedigree(req.con, req.body, id, (error, rows) => {
+      if (error) {
+        res.status(500).send({
+          response:
+            "Ha ocurrido un error actualizando el pedigree, error: " + error,
+        });
+      } else {
+        res.status(200).send({ response: rows });
+      }
+    });
+  },
 
   delete: async (req, res) => {
     const { id } = req.params;
-    const { userId } = req.body;
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const userId = decodeToken(token).user.id;
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
@@ -244,20 +250,28 @@ module.exports = {
 
       Pedigree.delete(req.con, id, (error, row) => {
         if (error) {
-          res.status(500).send({ response: "Error al eliminar el Pedigree" });
+          return res
+            .status(500)
+            .send({ response: "Error al eliminar el Pedigree" });
         } else {
-          res.status(200).send({ response: row });
+          return res.status(200).send({ response: row });
         }
       });
     } catch (error) {
       console.error(error);
-      res.status(500).send({ response: "Error al actualizar el Pedigree" });
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el Pedigree" });
     }
   },
 
   changeOwner: async (req, res) => {
     const { id } = req.params;
-    const { idNewOwner, owner, userId } = req.body;
+    const { username, description } = req.body;
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const userId = decodeToken(token).user.id;
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
@@ -274,26 +288,45 @@ module.exports = {
           .send({ response: "No tienes permiso para editar este Pedigree" });
       }
 
-      pedigree.user_id = idNewOwner;
-
-      Pedigree.changeOwner(req.con, idNewOwner, owner, (error, row) => {
-        if (error) {
-          res.status(500).send({ response: "Error al actualizar el Pedigree" });
-        } else {
-          res
-            .status(200)
-            .send({ response: "Pedigree actualizado correctamente", pedigree });
-        }
+      const user = await new Promise((resolve, reject) => {
+        User.getByEmailOrUsername(req.con, username, (error, row) => {
+          if (error) return reject(error);
+          resolve(row);
+        });
       });
+
+      if (!user.length) {
+        return res.status(404).send({ response: "El usuario no existe" });
+      }
+
+      const updated = Pedigree.changeOwnership(
+        req.con,
+        id,
+        user[0].id,
+        user[0].username,
+        description
+      );
+
+      if (updated) {
+        return res
+          .status(200)
+          .send({ response: "Pedigree actualizado correctamente" });
+      }
     } catch (error) {
       console.error(error);
-      res.status(500).send({ response: "Error al actualizar el Pedigree" });
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el Pedigree" });
     }
   },
 
   changePermissions: async (req, res) => {
     const { id } = req.params;
-    const { editable, userId } = req.body;
+    const { private } = req.body;
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const userId = decodeToken(token).user.id;
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
@@ -310,21 +343,52 @@ module.exports = {
           .send({ response: "No tienes permiso para editar este Pedigree" });
       }
 
-      pedigree.editable = editable;
+      pedigree.private = private;
 
-      Pedigree.changePermissions(req.con, editable, id, (error, row) => {
+      Pedigree.changePermissions(req.con, private, id, (error, row) => {
         if (error) {
-          res.status(500).send({ response: "Error al actualizar el Pedigree" });
+          return res
+            .status(500)
+            .send({ response: "Error al actualizar el Pedigree" });
         } else {
-          res
+          return res
             .status(200)
             .send({ response: "Pedigree actualizado correctamente", pedigree });
         }
       });
     } catch (error) {
       console.error(error);
-      res.status(500).send({ response: "Error al actualizar el Pedigree" });
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el Pedigree" });
     }
+  },
+
+  updateImg: (req, res) => {
+    const { id } = req.params;
+
+    req.body.img = "";
+
+    console.log(req.body);
+
+    if (req.body.old_img) {
+      removeFile(`pedigrees/${req.body.old_img}`);
+    }
+
+    if (req.file) {
+      req.body.img = req.file.filename;
+    }
+
+    Pedigree.updateImg(req.con, req.body.img, id, (error, rows) => {
+      if (error) {
+        res.status(500).send({
+          response:
+            "Ha ocurrido un error actualizando el pedigree, error: " + error,
+        });
+      } else {
+        res.status(200).send({ response: rows });
+      }
+    });
   },
 };
 

@@ -55,6 +55,12 @@ module.exports = {
     });
   },
   store: async (req, res) => {
+    req.body.picture = "";
+
+    if (req.file) {
+      req.body.picture = req.file.filename;
+    }
+
     try {
       const userByUsername = await new Promise((resolve, reject) => {
         User.getByUsername(req.con, req.body.username, (error, row) => {
@@ -64,6 +70,9 @@ module.exports = {
       });
 
       if (userByUsername.length > 0) {
+        if (req.body.picture) {
+          removeFile(`users/${req.body.picture}`);
+        }
         return res.status(400).send({
           response: {
             msg: "Ya está registrado este nombre de usuario",
@@ -80,6 +89,9 @@ module.exports = {
       });
 
       if (userByEmail.length > 0) {
+        if (req.body.picture) {
+          removeFile(`users/${req.body.picture}`);
+        }
         return res.status(400).send({
           response: { msg: "Ya está registrado este correo", error: "email" },
         });
@@ -101,6 +113,9 @@ module.exports = {
       res.status(200).send({ response: savedUser });
     } catch (error) {
       console.error(error);
+      if (req.body.picture) {
+        removeFile(`users/${req.body.picture}`);
+      }
       res.status(500).send({
         response:
           "Ha ocurrido un error registrando al usuario: " + error.message,
@@ -134,7 +149,7 @@ module.exports = {
         } else if (isPBKDF2Hash(row[0].password)) {
           const [, , iterations, salt, storedHash] = row[0].password.split("$");
           passwordValid = await validatePBKDF2Password(
-            passwordIngresada,
+            password,
             storedHash,
             salt,
             parseInt(iterations, 10)
@@ -183,6 +198,27 @@ module.exports = {
         });
       }
     });
+  },
+
+  usersLoggedInfo: async (req, res) => {
+    try {
+      const loggedUsers = await User.getLoggedUsers(req.con).then(
+        (rows) => rows[0].count
+      );
+
+      const subsUsers = await User.getMembersUsers(req.con).then(
+        (rows) => rows[0].count
+      );
+      return res
+        .status(200)
+        .send({ response: { logged: loggedUsers, subs: subsUsers } });
+    } catch (error) {
+      return res.status(500).send({
+        response:
+          "Ha ocurrido un error trayendo la cuenta de usuarios logueados y subscritos: " +
+          error,
+      });
+    }
   },
 };
 

@@ -41,6 +41,24 @@ module.exports = {
     );
   },
 
+  getLoggedUsers: (con) => {
+    return con
+      .promise()
+      .query(
+        `SELECT COUNT(*) as count FROM users WHERE subscription=0 AND stateOnline=1`
+      )
+      .then(([rows]) => rows);
+  },
+
+  getMembersUsers: (con) => {
+    return con
+      .promise()
+      .query(
+        `SELECT COUNT(*) as count FROM users WHERE subscription=1 AND stateOnline=1`
+      )
+      .then(([rows]) => rows);
+  },
+
   saveUser: (con, data, callback) => {
     con.query(
       `INSERT INTO users (username, password, first_name, last_name, email, phone_number, ip, street, city, state, country, zip_code, picture, is_superuser, stateOnline, adminuser, is_staff, is_active, last_login, date_joined, payment_at)
@@ -48,9 +66,9 @@ module.exports = {
         data.last_name
       }','${data.email}','${data.phone_number}','${data.ip}','${
         data.street
-      }','${data.city}','${data.state}','${data.country}','${data.zip_code}','${
-        data.picture
-      }', ${false}, ${false}, ${false}, ${false}, ${false}, ${null}, CURRENT_TIMESTAMP, ${null})`,
+      }','${data.city}','${data.state}','${data.country}','${data.zip_code}',${
+        data.picture != "" ? "'" + data.picture + "'" : "NULL"
+      }, ${false}, ${false}, ${false}, ${false}, ${false}, ${null}, CURRENT_TIMESTAMP, ${null})`,
       callback
     );
   },

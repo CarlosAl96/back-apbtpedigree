@@ -9,10 +9,6 @@ function userAuthenticated(req, res, next) {
 
   try {
     const dataToken = decodeToken(token);
-    // if (dataToken.exp < (new Date().getTime())) {
-    //     return res.status(401).send({ response: 'El token ha expirado' });
-    // }
-
     next();
   } catch (error) {
     return res.status(401).send({ response: "El token es inválido" });
