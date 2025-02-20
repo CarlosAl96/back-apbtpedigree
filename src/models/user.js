@@ -1,21 +1,31 @@
 module.exports = {
   get: (con, condition, callback) => {
-    con.query("SELECT * FROM users " + condition, callback);
+    con.query(`SELECT * FROM users ${condition}`, callback);
   },
-  getCount: async (con, condition, callback) => {
-    await con.query("SELECT COUNT(*) FROM users " + condition, callback);
+  getCount: (con, condition) => {
+    return con
+      .promise()
+      .query(`SELECT COUNT(*) as count FROM users ${condition}`)
+      .then(([rows]) => rows);
   },
   getById: (con, id, callback) => {
     con.query(`SELECT * FROM users where id=${id}`, callback);
   },
-
+  delete: (con, id, callback) => {
+    con.query(`DELETE FROM users WHERE id=${id}`, callback);
+  },
+  disable: (con, id, value, callback) => {
+    con.query(`UPDATE users SET is_enabled=${value} WHERE id=${id}`, callback);
+  },
+  forumBan: (con, id, value, callback) => {
+    con.query(`UPDATE users SET forum_ban=${value} WHERE id=${id}`, callback);
+  },
   getByEmailOrUsername: (con, username, callback) => {
     con.query(
       `SELECT * FROM users where email='${username}' OR username='${username}' LIMIT 1`,
       callback
     );
   },
-
   getByUsername: (con, username, callback) => {
     con.query(
       `SELECT * FROM users where username='${username}' LIMIT 1`,
@@ -50,11 +60,34 @@ module.exports = {
       .then(([rows]) => rows);
   },
 
+  getCountLoggedUsers: (con) => {
+    return con
+      .promise()
+      .query(`SELECT COUNT(*) as count FROM users WHERE stateOnline=1`)
+      .then(([rows]) => rows);
+  },
+
+  getLastFiveUsers: (con) => {
+    return con
+      .promise()
+      .query("SELECT username FROM users ORDER BY date_joined DESC LIMIT 5")
+      .then(([rows]) => rows);
+  },
+
   getMembersUsers: (con) => {
     return con
       .promise()
       .query(
         `SELECT COUNT(*) as count FROM users WHERE subscription=1 AND stateOnline=1`
+      )
+      .then(([rows]) => rows);
+  }, 
+
+  setPosts: (con, posts, idUser) => {
+    return con
+      .promise()
+      .query(
+        `UPDATE users SET posts = ${posts} WHERE id = ${idUser}`
       )
       .then(([rows]) => rows);
   },
@@ -71,5 +104,9 @@ module.exports = {
       }, ${false}, ${false}, ${false}, ${false}, ${false}, ${null}, CURRENT_TIMESTAMP, ${null})`,
       callback
     );
+  },
+
+  updateUser: (con, fields, values, callback) => {
+    con.query(`UPDATE users SET ${fields} WHERE id= ?`, values, callback);
   },
 };

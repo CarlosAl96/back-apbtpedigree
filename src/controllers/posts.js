@@ -1,121 +1,266 @@
-const postsModel = require('../models/posts');
-const topicsModel = require('../models/topics');
-const Category = require('../models/categories');
+const postsModel = require("../models/posts");
+const topicsModel = require("../models/topics");
+const Category = require("../models/categories");
+const usersModel = require("../models/user");
+const { decodeToken } = require("../utils/jwt");
+
 module.exports = {
-    get: async(req, res) => {
-        const { page, size, idTopics } = req.query;
-        const init = (page - 1) * size;
-        const offset = page * size;
-        const postsCount = await new Promise((resolve, reject) => {
-            postsModel.getCount(req.con, `where id_topics=${idTopics}`, (error, rows) => {
-                if (error) {
-                    return reject(
-                        "Ha ocurrido un error trayendo el total de topics: " + error
-                    );
-                }
-                console.log(rows[0]);
+  get: async (req, res) => {
+    const { page, size, idTopic, search, previous, order } = req.query;
 
-                resolve(rows[0]);
-            });
-        });
-        console.log(postsCount.count);
-        postsModel.get(req.con, `where id_topics=${idTopics} LIMIT ${init},${offset}`, (err, result) => {
-            if (err) {
-                res.status(500).send({
-                    response: "Ha ocurrido un error listando los topics" + err,
-                });
-            }
-            res.status(200).send({
-                response: { data: result, totalRows: postsCount.count }
-            });
-        });
-    },
-    store: (req, res) => {
-        console.log(new Date().toDateString() + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }));
-        var object = JSON.stringify({
-            date: `${new Date().toDateString()} ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}`,
-            user: req.body.id_user_send,
-            author: req.body.author
-        });
-        req.body.date = `${new Date().toDateString()} ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}`;
-        postsModel.store(req.con, req.body, async(err, result) => {
-            if (err) {
-                res.status(500).send({
-                    response: "Ha ocurrido un error creando el posts " + err,
-                });
-            }
+    const offset = page * size;
+    let condition = `WHERE id_topic=${idTopic} AND is_deleted=false`;
 
-            var topic = await new Promise((resolve, reject) => {
-                topicsModel.getById(req.con, req.body.id_topics, (err, result) => {
-                    if (err) {
-                        return reject(
-                            "Ha ocurrido un error en posts: " + err
-                        );
-                    }
-                    resolve(result[0]);
-                });
-            });
-            topic.replies = topic.replies + 1;
-            var topicUpdate = await new Promise((resolve, reject) => {
-                topicsModel.update(req.con, `update topics set replies=${topic.replies}, last_post='${object}' where id=${ req.body.id_topics}`, (err, result) => {
-                    if (err) {
-                        return reject(
-                            "Ha ocurrido un error en posts: " + err
-                        );
-                    }
-                    resolve(result[0]);
-                });
-            });
-
-
-            var category = await new Promise((resolve, reject) => {
-                Category.getById(req.con, topic.id_categories, (err, result) => {
-                    if (err) {
-                        return reject(
-                            "Ha ocurrido un error en topics: " + err
-                        );
-                    }
-                    resolve(result[0]);
-                });
-            });
-            category.posts = category.posts + 1;
-            Category.update(req.con, `UPDATE categories set posts=${  category.posts }, last_post='${object}' where id= ${ topic.id_categories}`, (err, result) => {
-                if (err) {
-                    res.status(500).send({
-                        response: "Ha ocurrido un error creando el topics" + err,
-                    });
-                }
-                res.status(200).send({
-                    response: 'success'
-                });
-            });
-
-        });
-    },
-    delete: (req, res) => {
-        const { id } = req.params;
-        postsModel.delete(req.con, id, (err, result) => {
-            if (err) {
-                res.status(500).send({
-                    response: "Ha ocurrido un error eliminando el posts" + err,
-                });
-            }
-            res.status(200).send({
-                response: 'success'
-            });
-        });
-    },
-    update: (req, res) => {
-        const { id } = req.params;
-        postsModel.update(req.con, `update posts set message=${req.body.message} where id=${id}`, (err, result) => {
-            if (err) {
-                res.status(500).send({
-                    response: "Ha ocurrido un error actulizando el posts" + err,
-                });
-            }
-            res.status(200).send({
-                response: 'success'
-            });
-        });
+    if (search) {
+      condition += ` AND (subject LIKE '%${search}%' OR message LIKE '%${search}%') `;
     }
+
+    if (previous) {
+      let days = 0;
+
+      switch (previous) {
+        case "1_days":
+          days = 1;
+          break;
+        case "2_days":
+          days = 2;
+          break;
+        case "3_days":
+          days = 3;
+          break;
+        case "4_days":
+          days = 4;
+          break;
+        case "5_days":
+          days = 5;
+          break;
+        case "6_days":
+          days = 6;
+          break;
+        case "7_days":
+          days = 7;
+          break;
+        case "1_year":
+          days = 365;
+          break;
+      }
+
+      if (days > 0) {
+        condition += ` AND created_at >= NOW() - INTERVAL ${days} DAY`;
+      }
+    }
+
+    const postsCount = await postsModel
+      .getCount(req.con, condition)
+      .then((rows) => rows[0].count);
+
+    console.log(condition);
+
+    condition += ` ORDER BY first DESC, created_at ${order} LIMIT ${size} OFFSET ${offset}`;
+
+    postsModel.get(req.con, condition, (err, result) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error listando los topics" + err,
+        });
+      }
+      return res.status(200).send({
+        response: { data: result, totalRows: postsCount },
+      });
+    });
+  },
+  getById: (req, res) => {
+    const { id } = req.params;
+    postsModel.getById(req.con, id, async (err, result) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el post" + err,
+        });
+      }
+
+      return res.status(200).send({
+        response: result[0],
+      });
+    });
+  },
+  store: (req, res) => {
+    console.log(req.body);
+
+    req.body.first = false;
+
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    if (!user.is_enabled || user.forum_ban) {
+      return res.status(403).send({
+        response: "No estás autorizado para postear en el foro",
+      });
+    }
+
+    postsModel.store(req.con, req.body, async (err, result) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error creando el posts " + err,
+        });
+      }
+
+      await updateRepliesInfo(
+        req.con,
+        req.body.id_topic,
+        req.body.id_categories
+      );
+
+      await updateLastPost(req.con, req.body.id_topic, req.body.id_categories);
+
+      await updatePostsUsers(req.con, req.body.id_author);
+      return res.status(200).send({
+        response: result,
+      });
+    });
+  },
+
+  delete: (req, res) => {
+    const { id } = req.params;
+
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    if (!user.is_enabled || user.forum_ban) {
+      return res.status(403).send({
+        response: "No estás autorizado para postear en el foro",
+      });
+    }
+
+    postsModel.getById(req.con, id, (err, result) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el topics" + err,
+        });
+      }
+      const moderators = JSON.parse(result[0].moderators);
+      const isModerator = moderators.some((rol) => rol.includes(user.username));
+
+      if (result[0].id_author == user.id || user.is_superuser || isModerator) {
+        postsModel.delete(req.con, id, async (err, rowDelete) => {
+          if (err) {
+            return res.status(500).send({
+              response: "Ha ocurrido un error eliminando el post" + err,
+            });
+          }
+
+          await updateRepliesInfo(
+            req.con,
+            result[0].id_topic,
+            result[0].id_categories
+          );
+          await updateLastPost(
+            req.con,
+            result[0].id_topic,
+            result[0].id_categories
+          );
+          await updatePostsUsers(req.con, result[0].id_author);
+          return res.status(200).send({
+            response: "succes",
+          });
+        });
+      } else {
+        return res
+          .status(403)
+          .send({ response: "No tienes permiso para eliminar este topic" });
+      }
+    });
+  },
+  update: (req, res) => {
+    const { id } = req.params;
+    const { subject, message } = req.body;
+
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    postsModel.getById(req.con, id, (err, row) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el topics" + err,
+        });
+      }
+
+      if (row[0].id_author == user.id) {
+        postsModel.update(
+          req.con,
+          `update posts set subject='${subject}', message='${message}' WHERE id=${id}`,
+          (err, result) => {
+            if (err) {
+              return res.status(500).send({
+                response: "Ha ocurrido un error actualizando el post" + err,
+              });
+            }
+            return res.status(200).send({
+              response: result,
+            });
+          }
+        );
+      } else {
+        return res
+          .status(403)
+          .send({ response: "No tienes permiso para editar este post" });
+      }
+    });
+  },
+};
+
+async function updateRepliesInfo(con, id_topic, id_category) {
+  let condition = ` WHERE id_topic=${id_topic} AND is_deleted=false AND first=false`;
+  const countPosts = await postsModel.getCount(con, condition);
+
+  console.log(countPosts[0].count);
+
+  topicsModel.setReplies(con, countPosts[0].count, id_topic);
+
+  const countPostCategory = await postsModel.getCountPostsByCategory(
+    con,
+    id_category
+  );
+
+  Category.setPosts(con, countPostCategory[0].count, id_category);
+}
+
+async function updateLastPost(con, id_topic, id_category) {
+  const lastPostCategory = await postsModel.getLastPostFromCategory(
+    con,
+    id_category
+  );
+
+  const lastPostTopic = await postsModel.getLastPostFromTopic(con, id_topic);
+
+  if (lastPostCategory) {
+    const objLastPost = {
+      date: lastPostCategory[0].created_at,
+      user: lastPostCategory[0].id_author,
+      author: lastPostCategory[0].username,
+    };
+
+    await Category.setLastPost(con, JSON.stringify(objLastPost), id_category);
+  }
+
+  if (lastPostTopic) {
+    const objLastPost = {
+      date: lastPostTopic[0].created_at,
+      user: lastPostTopic[0].id_author,
+      author: lastPostTopic[0].username,
+    };
+
+    await topicsModel.setLastPost(con, JSON.stringify(objLastPost), id_topic);
+  }
+}
+
+async function updatePostsUsers(con, id_user) {
+  const countPostUsers = await postsModel.getCountPostsByUser(con, id_user);
+
+  usersModel.setPosts(con, countPostUsers[0].count, id_user);
 }

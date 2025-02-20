@@ -25,7 +25,12 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.get("/users", userAuthenticated, userController.index);
+app.get("/usersSearch", userAuthenticated, userController.searchUsers);
 app.get("/users/:id", userAuthenticated, userController.readUser);
+app.delete("/users/:id", userAuthenticated, userController.delete);
+app.patch("/users/:id", userAuthenticated, userController.update);
+app.patch("/users/:id/forumBan", userAuthenticated, userController.forumBan);
+app.patch("/users/:id/disable", userAuthenticated, userController.disable);
 app.get("/usersInfo", userController.usersLoggedInfo);
 app.post("/users/auth", userController.login);
 app.post("/users/store", upload.single("picture"), userController.store);

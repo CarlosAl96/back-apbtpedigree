@@ -23,4 +23,31 @@ module.exports = {
   update: (con, query, callback) => {
     con.query(query, callback);
   },
+  setTopics: (con, id, topics, callback) => {
+    con.query(
+      `UPDATE forum_categories SET topics = ${topics} WHERE id=${id}`,
+      callback
+    );
+  },
+  setLastPost: (con, last_post, id) => {
+    return con
+      .promise()
+      .query(
+        `UPDATE forum_categories SET last_post = '${last_post}' WHERE id=${id}`
+      )
+      .then(([rows]) => rows);
+  },
+  setPosts: (con, posts, id) => {
+    return con
+      .promise()
+      .query(`UPDATE forum_categories SET posts = ${posts} WHERE id=${id}`)
+      .then(([rows]) => rows);
+  },
+
+  lockOrUnlockCategory: (con, id, callback) => {
+    con.query(
+      `UPDATE forum_categories SET is_locked = !is_locked WHERE id=${id}`,
+      callback
+    );
+  },
 };

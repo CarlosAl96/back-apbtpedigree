@@ -3,43 +3,68 @@ const { createAccessToken, createRefreshToken } = require("../utils/jwt");
 const moment = require("moment");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const { decodeToken } = require("../utils/jwt");
 
 module.exports = {
   index: async (req, res) => {
-    const { page, size, search } = req.query;
-    let condition = "";
-    let offset = (page - 1) * size;
+    const { page, size, orderBy, search, active } = req.query;
+
+    let condition = "WHERE 1=1 ";
 
     if (search) {
-      condition = ` WHERE name ILIKE '%${search}%' OR last_name ILIKE '%${search}%' OR email ILIKE '%${search}%'`;
+      condition += `AND (username LIKE '%${search}%' OR email LIKE '%${search}%' OR first_name LIKE '%${search}%' OR last_name LIKE '%${search}%') `;
     }
 
-    const usersCount = await new Promise((resolve, reject) => {
-      User.getCount(req.con, condition, (error, rows) => {
-        if (error) {
-          return reject(
-            "Ha ocurrido un error trayendo el total de usuarios: " + error
-          );
-        }
-        resolve(rows.rows[0].count);
-      });
-    });
+    if (active == 0 || active == 1) {
+      const activeFlag = active == 0 ? false : true;
+      condition += `AND is_enabled=${activeFlag} `;
+    } else if (active == 3) {
+      condition += `AND forum_ban=true `;
+    }
 
-    condition += ` LIMIT ${size} OFFSET ${offset}`;
+    const offset = page * size;
+
+    try {
+      const usersCount = await User.getCount(req.con, condition).then(
+        (rows) => rows[0].count
+      );
+
+      condition += `ORDER BY ${orderBy} LIMIT ${size} OFFSET ${offset} `;
+      console.log(condition);
+      User.get(req.con, condition, (error, rows) => {
+        if (error) {
+          res.status(500).send({
+            response: "Ha ocurrido un error listando los users: " + error,
+          });
+        } else {
+          console.log(usersCount);
+          res
+            .status(200)
+            .send({ response: { data: rows, totalRows: usersCount } });
+        }
+      });
+    } catch (error) {
+      console.error("Ha ocurrido un error listando los users: ", error);
+      throw error;
+    }
+  },
+
+  searchUsers: (req, res) => {
+    const { search } = req.query;
+    let condition = `WHERE username LIKE '%${search}%'`;
 
     User.get(req.con, condition, (error, rows) => {
       if (error) {
-        res.status(500).send({
-          response: "Ha ocurrido un error listando los usuarios" + error,
+        return res.status(500).send({
+          response:
+            "Ha ocurrido un error trayendo los usuarios error: " + error,
         });
-      } else {
-        res
-          .status(200)
-          .send({ response: { data: rows.rows, totalRows: usersCount } });
       }
+      return res.status(200).send({ response: rows });
     });
   },
-  readUser(req, res) {
+
+  readUser: (req, res) => {
     const { id } = req.params;
     console.log(id);
     User.getById(req.con, id, (error, row) => {
@@ -56,6 +81,10 @@ module.exports = {
   },
   store: async (req, res) => {
     req.body.picture = "";
+
+    if (!req.body.is_superuser) {
+      req.body.is_superuser = false;
+    }
 
     if (req.file) {
       req.body.picture = req.file.filename;
@@ -139,6 +168,12 @@ module.exports = {
           });
         }
 
+        if (!row[0].is_enabled) {
+          return res.status(403).send({
+            response: "Tu cuenta ha sido deshabilitada",
+          });
+        }
+
         let passwordValid = false;
 
         if (isBcryptHash(row[0].password)) {
@@ -199,7 +234,130 @@ module.exports = {
       }
     });
   },
+  delete: async (req, res) => {
+    const { id } = req.params;
+    const { authorization } = req.headers;
 
+    const token = authorization.replace("Bearer ", "");
+    const isAdmin = decodeToken(token).user.is_superuser;
+
+    console.log(isAdmin);
+
+    try {
+      if (isAdmin) {
+        User.delete(req.con, id, (error, row) => {
+          if (error) {
+            return res
+              .status(500)
+              .send({ response: "Error al eliminar el usuario" });
+          } else {
+            return res.status(200).send({ response: row });
+          }
+        });
+      } else {
+        return res.status(403).send({
+          response: "No tienes permisos para realizar esta acción",
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      return res.status(500).send({ response: "Error al eliminar el usuario" });
+    }
+  },
+  forumBan: async (req, res) => {
+    const { id } = req.params;
+    const { value } = req.body;
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const isAdmin = decodeToken(token).user.is_superuser;
+
+    console.log(isAdmin);
+
+    try {
+      if (isAdmin) {
+        User.forumBan(req.con, id, value, (error, row) => {
+          if (error) {
+            return res
+              .status(500)
+              .send({ response: "Error al actualizar el usuario" });
+          } else {
+            return res.status(200).send({ response: row });
+          }
+        });
+      } else {
+        return res.status(403).send({
+          response: "No tienes permisos para realizar esta acción",
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el usuario" });
+    }
+  },
+  disable: async (req, res) => {
+    const { id } = req.params;
+    const { value } = req.body;
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const isAdmin = decodeToken(token).user.is_superuser;
+
+    console.log(isAdmin);
+
+    try {
+      if (isAdmin) {
+        User.disable(req.con, id, value, (error, row) => {
+          if (error) {
+            return res
+              .status(500)
+              .send({ response: "Error al actualizar el usuario" });
+          } else {
+            return res.status(200).send({ response: row });
+          }
+        });
+      } else {
+        return res.status(403).send({
+          response: "No tienes permisos para realizar esta acción",
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el usuario" });
+    }
+  },
+  update: async (req, res) => {
+    const { id } = req.params;
+
+    const fields = Object.keys(req.body)
+      .map((key) => `${key} = ?`)
+      .join(", ");
+
+    const values = Object.values(data);
+
+    values.push(id);
+
+    try {
+      User.updateUser(req.con, fields, values, (error, row) => {
+        if (error) {
+          return res
+            .status(500)
+            .send({ response: "Error al actualizar el usuario" });
+        } else {
+          return res.status(200).send({ response: row });
+        }
+      });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el usuario" });
+    }
+  },
   usersLoggedInfo: async (req, res) => {
     try {
       const loggedUsers = await User.getLoggedUsers(req.con).then(
