@@ -63,6 +63,12 @@ module.exports = {
   getPostsReviews: (con, query, callback) => {
     con.query(query, callback);
   },
+  updateViewedTopics: (con, id, posts) => {
+    return con
+      .promise()
+      .query(`UPDATE viewed_topics set posts_count=${posts} WHERE id=${id}`)
+      .then(([rows]) => rows);
+  },
   setViewedTopics: (con, data) => {
     return con
       .promise()

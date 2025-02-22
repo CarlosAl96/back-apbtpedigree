@@ -74,7 +74,8 @@ module.exports = {
         result[i].new_posts = await getIsUnviewed(
           req.con,
           user.id,
-          result[i].id
+          result[i].id,
+          result[i].replies + 1
         );
       }
 
@@ -128,6 +129,11 @@ module.exports = {
           req.body.id_categories
         );
 
+        req.io.emit("forum", {
+          id_topic: result.insertId,
+          id_category: req.body.id_categories,
+        });
+
         return res.status(200).send({
           response: "succes",
         });
@@ -136,6 +142,7 @@ module.exports = {
   },
   getById: (req, res) => {
     const { id } = req.params;
+    const { addview } = req.query;
 
     const { authorization } = req.headers;
 
@@ -150,7 +157,9 @@ module.exports = {
       }
       await topicsModel.addViews(req.con, id);
 
-      await updateViews(req.con, user.id, id, result[0].id_categories);
+      if (addview) {
+        await updateViews(req.con, user.id, id, result[0].id_categories);
+      }
 
       return res.status(200).send({
         response: result[0],
@@ -201,7 +210,10 @@ module.exports = {
               await updatePostsInfo(req.con, result[0].id_categories);
               await updateLastPost(req.con, result[0].id_categories);
               await updatePostsUsers(req.con, result[0].id_author);
-
+              req.io.emit("forum", {
+                id_topic: result[0].id_topic,
+                id_category: esult[0].id_categories,
+              });
               return res.status(200).send({
                 response: "succes",
               });
@@ -213,6 +225,30 @@ module.exports = {
           .status(403)
           .send({ response: "No tienes permiso para eliminar este topic" });
       }
+    });
+  },
+  markAllAsViewed: (req, res) => {
+    const { id } = req.params;
+    const { authorization } = req.headers;
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    let condition = `WHERE id_categories=${id}`;
+
+    topicsModel.get(req.con, condition, async (err, result) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error listando los topics" + err,
+        });
+      }
+
+      for (let i = 0; i < result.length; i++) {
+        await updateViews(req.con, user.id, result[i].id, id);
+      }
+
+      return res.status(200).send({
+        response: "success",
+      });
     });
   },
   sticky: (req, res) => {
@@ -240,6 +276,10 @@ module.exports = {
               response: "Ha ocurrido un error actualizando el topics" + err,
             });
           }
+          req.io.emit("forum", {
+            id_topic: result[0].id,
+            id_category: result[0].id_categories,
+          });
           return res.status(200).send({
             response: "succes",
           });
@@ -270,12 +310,16 @@ module.exports = {
       const isModerator = moderators.some((rol) => rol.includes(user.username));
 
       if (result[0].id_author == user.id || user.is_superuser || isModerator) {
-        topicsModel.lock(req.con, id, (err, result) => {
+        topicsModel.lock(req.con, id, (err, ress) => {
           if (err) {
             return res.status(500).send({
               response: "Ha ocurrido un error actualizando el topics" + err,
             });
           }
+          req.io.emit("forum", {
+            id_topic: result[0].id,
+            id_category: result[0].id_categories,
+          });
           return res.status(200).send({
             response: "succes",
           });
@@ -306,12 +350,16 @@ module.exports = {
       const isModerator = moderators.some((rol) => rol.includes(user.username));
 
       if (user.is_superuser || isModerator) {
-        topicsModel.announcement(req.con, id, (err, result) => {
+        topicsModel.announcement(req.con, id, (err, ress) => {
           if (err) {
             return res.status(500).send({
               response: "Ha ocurrido un error actualizando el topics" + err,
             });
           }
+          req.io.emit("forum", {
+            id_topic: result[0].id,
+            id_category: result[0].id_categories,
+          });
           return res.status(200).send({
             response: "succes",
           });
@@ -350,6 +398,10 @@ module.exports = {
                 response: "Ha ocurrido un error actualizando el topics" + err,
               });
             }
+            req.io.emit("forum", {
+              id_topic: row[0].id,
+              id_category: row[0].id_categories,
+            });
             return res.status(200).send({
               response: result,
             });
@@ -371,7 +423,7 @@ async function updatePostsInfo(con, id_category) {
   );
   const countTopics = await topicsModel.getCount(
     con,
-    `WHERE id_categories=${id_category}`
+    `WHERE id_categories=${id_category} AND is_deleted=false`
   );
 
   Category.setTopics(con, id_category, countTopics[0].count, () => {});
@@ -405,23 +457,31 @@ async function updateViews(con, id_user, id_topic, id_category) {
   let condition = ` WHERE id_topic=${id_topic} AND is_deleted=false`;
   const countPosts = await postsModel.getCount(con, condition);
 
-  const data = {
-    id_user: id_user,
-    id_topic: id_topic,
-    id_category: id_category,
-    posts_count: countPosts[0].count,
-  };
-
-  await topicsModel.setViewedTopics(con, data);
-}
-
-async function getIsUnviewed(con, id_user, id_topic) {
-  let condition = ` WHERE id_topic=${id_topic} AND is_deleted=false`;
-  const countPosts = await postsModel.getCount(con, condition);
   const viewedTopic = await topicsModel.getViewedTopic(con, id_user, id_topic);
 
   if (viewedTopic.length) {
-    if (countPosts[0].count > viewedTopic[0].posts_count) {
+    await topicsModel.updateViewedTopics(
+      con,
+      viewedTopic[0].id,
+      countPosts[0].count
+    );
+  } else {
+    const data = {
+      id_user: id_user,
+      id_topic: id_topic,
+      id_category: id_category,
+      posts_count: countPosts[0].count,
+    };
+
+    await topicsModel.setViewedTopics(con, data);
+  }
+}
+
+async function getIsUnviewed(con, id_user, id_topic, posts) {
+  const viewedTopic = await topicsModel.getViewedTopic(con, id_user, id_topic);
+
+  if (viewedTopic.length) {
+    if (posts > viewedTopic[0].posts_count) {
       return true;
     } else {
       return false;

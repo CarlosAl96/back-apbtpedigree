@@ -67,7 +67,7 @@ module.exports = {
                   id_two: existChat.id_user_rwo,
                 });
 
-                return res.status(200).send({ response: "Success" });
+                return res.status(200).send({ response: existChat.id });
               }
             });
           }
@@ -106,7 +106,7 @@ module.exports = {
                   id_two: req.body.id_receiver,
                 });
 
-                return res.status(200).send({ response: "Success" });
+                return res.status(200).send({ response: result.insertId });
               }
             });
           }
@@ -137,7 +137,7 @@ module.exports = {
                 id_one: req.body.id_sender,
                 id_two: req.body.id_receiver,
               });
-              return res.status(200).send({ response: "Success" });
+              return res.status(200).send({ response: req.body.id_chat });
             }
           });
         }

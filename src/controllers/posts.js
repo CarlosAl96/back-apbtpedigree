@@ -111,10 +111,12 @@ module.exports = {
         req.body.id_topic,
         req.body.id_categories
       );
-
       await updateLastPost(req.con, req.body.id_topic, req.body.id_categories);
-
       await updatePostsUsers(req.con, req.body.id_author);
+      req.io.emit("forum", {
+        id_topic: req.body.id_topic,
+        id_category: req.body.id_categories,
+      });
       return res.status(200).send({
         response: result,
       });
@@ -163,6 +165,11 @@ module.exports = {
             result[0].id_categories
           );
           await updatePostsUsers(req.con, result[0].id_author);
+
+          req.io.emit("forum", {
+            id_topic: result[0].id_topic,
+            id_category: result[0].id_categories,
+          });
           return res.status(200).send({
             response: "succes",
           });
@@ -200,6 +207,10 @@ module.exports = {
                 response: "Ha ocurrido un error actualizando el post" + err,
               });
             }
+            req.io.emit("forum", {
+              id_topic: row[0].id_topic,
+              id_category: row[0].id_categories,
+            });
             return res.status(200).send({
               response: result,
             });
@@ -242,6 +253,7 @@ async function updateLastPost(con, id_topic, id_category) {
     const objLastPost = {
       date: lastPostCategory[0].created_at,
       user: lastPostCategory[0].id_author,
+      topic: id_topic,
       author: lastPostCategory[0].username,
     };
 
@@ -252,6 +264,7 @@ async function updateLastPost(con, id_topic, id_category) {
     const objLastPost = {
       date: lastPostTopic[0].created_at,
       user: lastPostTopic[0].id_author,
+      topic: id_topic,
       author: lastPostTopic[0].username,
     };
 

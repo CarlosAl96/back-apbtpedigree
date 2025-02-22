@@ -390,6 +390,20 @@ module.exports = {
       }
     });
   },
+  getLogs: (req, res) => {
+    const { id } = req.params;
+    Pedigree.getLogs(req.con, id, (error, rows) => {
+      if (error) {
+        res.status(500).send({
+          response:
+            "Ha ocurrido un error listando los logs del pedigree, error: " +
+            error,
+        });
+      } else {
+        res.status(200).send({ response: rows });
+      }
+    });
+  },
 };
 
 const getParents = async (con, idFather, idMother) => {

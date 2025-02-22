@@ -35,4 +35,7 @@ app.get("/usersInfo", userController.usersLoggedInfo);
 app.post("/users/auth", userController.login);
 app.post("/users/store", upload.single("picture"), userController.store);
 app.post("/users/logout", userAuthenticated, userController.logout);
+
+app.post("/users/passwordReset", userController.forgotPassword);
+app.post("/users/passwordReset/:token", userController.changePassword);
 module.exports = app;

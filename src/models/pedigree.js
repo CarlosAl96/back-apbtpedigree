@@ -238,4 +238,11 @@ module.exports = {
       callback
     );
   },
+
+  getLogs: (con, id, callback) => {
+    con.query(
+      `SELECT dogs_log.*, users.username FROM dogs_log INNER JOIN users ON dogs_log.user_id = users.id WHERE dog_id = ${id} ORDER BY id DESC`,
+      callback
+    );
+  },
 };

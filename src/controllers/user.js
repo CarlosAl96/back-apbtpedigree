@@ -1,9 +1,10 @@
 const User = require("../models/user");
 const { createAccessToken, createRefreshToken } = require("../utils/jwt");
-const moment = require("moment");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { decodeToken } = require("../utils/jwt");
+const { removeFile } = require("../utils/dir");
+const sendResetEmail = require("../utils/sendEmail");
 
 module.exports = {
   index: async (req, res) => {
@@ -20,6 +21,8 @@ module.exports = {
       condition += `AND is_enabled=${activeFlag} `;
     } else if (active == 3) {
       condition += `AND forum_ban=true `;
+    } else if (active == 4) {
+      condition += `AND subscription=true `;
     }
 
     const offset = page * size;
@@ -102,11 +105,8 @@ module.exports = {
         if (req.body.picture) {
           removeFile(`users/${req.body.picture}`);
         }
-        return res.status(400).send({
-          response: {
-            msg: "Ya está registrado este nombre de usuario",
-            error: "username",
-          },
+        return res.status(400).json({
+          message: "username",
         });
       }
 
@@ -121,9 +121,7 @@ module.exports = {
         if (req.body.picture) {
           removeFile(`users/${req.body.picture}`);
         }
-        return res.status(400).send({
-          response: { msg: "Ya está registrado este correo", error: "email" },
-        });
+        return res.status(400).json({ message: "email" });
       }
 
       const genSalt = await bcrypt.genSalt(10);
@@ -191,20 +189,26 @@ module.exports = {
           );
         }
         if (passwordValid) {
-          const ip = req.ip || req.ips;
-          User.updateLoginData(req.con, row[0].id, ip, (err, result) => {
-            if (err) {
-              console.log("Error guardando datos de login: " + err);
-            } else {
-              //console.log(result);
-            }
-          });
-
           delete row[0].password;
           const userData = row[0];
+
+          const ip = req.ip || req.ips;
+          const token = createAccessToken(userData, false);
+
+          await User.updateLoginData(req.con, row[0].id, ip).then(
+            (rows) => rows
+          );
+
+          await User.deleteSession(req.con, row[0].id).then((rows) => rows);
+
+          await User.saveSession(req.con, row[0].id, token).then(
+            (rows) => rows
+          );
+
+          req.io.emit("login", { reload: true });
           return res.status(200).send({
             response: {
-              token: createAccessToken(userData),
+              token: token,
               refreshToken: createRefreshToken(userData),
               user: userData,
             },
@@ -217,22 +221,25 @@ module.exports = {
       }
     });
   },
-  logout: (req, res) => {
+  logout: async (req, res) => {
     const { id } = req.body;
 
     console.log(id);
 
-    User.updateLogoutData(req.con, id, (error, row) => {
-      if (error) {
-        return res
-          .status(500)
-          .send({ response: "Hubo un error al cerrar sesión" });
-      } else {
-        return res.status(200).send({
-          response: "Cierre de sesión exitoso",
-        });
-      }
-    });
+    try {
+      await User.updateLogoutData(req.con, id).then((rows) => rows);
+
+      await User.deleteSession(req.con, id).then((rows) => rows);
+
+      req.io.emit("login", { reload: true });
+      return res.status(200).send({
+        response: "Cierre de sesión exitoso",
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error cerrando la sesión: " + error,
+      });
+    }
   },
   delete: async (req, res) => {
     const { id } = req.params;
@@ -377,6 +384,93 @@ module.exports = {
           error,
       });
     }
+  },
+  forgotPassword: (req, res) => {
+    const { username } = req.body;
+
+    User.getByEmailOrUsername(req.con, username, async (error, row) => {
+      if (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el usuario",
+        });
+      } else {
+        if (row.length == 0) {
+          return res.status(404).send({
+            response: "No se encontro ningun usuario con este email",
+          });
+        }
+
+        const token = createAccessToken(row[0], true);
+
+        console.log(token);
+
+        await User.deleteTokenByUserIdResetPassword(req.con, row[0].id);
+
+        User.saveTokenResetPassword(
+          req.con,
+          { user_id: row[0].id, token },
+          async (err, result) => {
+            if (err) {
+              return res.status(500).send({
+                response: "Ha ocurrido un error guardando el token: " + err,
+              });
+            } else {
+              console.log(result);
+              await sendResetEmail(row[0].email, token);
+              return res.status(200).send({
+                response: "Email sended",
+              });
+            }
+          }
+        );
+      }
+    });
+  },
+
+  changePassword: (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    const dataToken = decodeToken(token);
+
+    if (dataToken.exp < new Date().getTime()) {
+      return res.status(401).send({ response: "El token ha expirado" });
+    }
+
+    User.getTokenResetPassword(req.con, token, async (error, row) => {
+      if (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el token",
+        });
+      } else {
+        if (row.length == 0) {
+          return res.status(500).send({
+            response: "No se encontro ningun token",
+          });
+        }
+
+        const genSalt = await bcrypt.genSalt(10);
+        const newPassword = await bcrypt.hash(password, genSalt);
+
+        User.updateUser(
+          req.con,
+          `password = '${newPassword}'`,
+          row[0].user_id,
+          async (err, result) => {
+            if (err) {
+              return res.status(500).send({
+                response: "Ha ocurrido un error actualizando la contraseña",
+              });
+            } else {
+              await User.deleteTokenResetPassword(req.con, token);
+              return res.status(200).send({
+                response: "Contraseña actualizada",
+              });
+            }
+          }
+        );
+      }
+    });
   },
 };
 

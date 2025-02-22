@@ -28,7 +28,7 @@ module.exports = {
         results.sort((a, b) => b.last_message.id - a.last_message.id);
       }
 
-      res.status(200).send({ response: results });
+      return res.status(200).send({ response: results });
     });
   },
   delete: async (req, res) => {
@@ -118,7 +118,6 @@ module.exports = {
     var condition = "";
 
     console.log(id);
-    
 
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;

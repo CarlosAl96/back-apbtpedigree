@@ -22,7 +22,7 @@ module.exports = {
 
     console.log(categoriesCount);
 
-    Category.get(req.con, condition, (err, result) => {
+    Category.get(req.con, condition, async (err, result) => {
       if (err) {
         return res.status(500).send({
           response:
@@ -31,11 +31,11 @@ module.exports = {
       }
 
       for (let i = 0; i < result.length; i++) {
-        result[0].new_posts = getIsUnviewed(
+        result[i].new_posts = await getIsUnviewed(
           req.con,
           user.id,
-          result[0].id,
-          result[0].posts
+          result[i].id,
+          result[i].posts
         );
       }
       return res.status(200).send({
@@ -65,6 +65,10 @@ module.exports = {
           response: "Ha ocurrido un error creando la categoria" + error,
         });
       }
+      req.io.emit("forum", {
+        id_topic: 0,
+        id_category: 0,
+      });
       res.status(200).send({
         response: "Success",
       });
@@ -79,6 +83,10 @@ module.exports = {
           response: "Ha ocurrido un error eliminando la categoria" + err,
         });
       }
+      req.io.emit("forum", {
+        id_topic: 0,
+        id_category: id,
+      });
       return res.status(200).send({
         response: "Success",
       });
@@ -102,6 +110,10 @@ module.exports = {
           response: "Ha ocurrido un error actualizando la categoria" + err,
         });
       }
+      req.io.emit("forum", {
+        id_topic: 0,
+        id_category: id,
+      });
       return res.status(200).send({
         response: "Success",
       });
@@ -123,6 +135,10 @@ module.exports = {
             response: "Ha ocurrido un error bloqueando la categoria" + err,
           });
         }
+        req.io.emit("forum", {
+          id_topic: 0,
+          id_category: id,
+        });
         return res.status(200).send({
           response: "Success",
         });
@@ -137,7 +153,7 @@ module.exports = {
   getInfo: async (req, res) => {
     try {
       const postsCount = await postsModel
-        .getCount(req.con, "")
+        .getCount(req.con, "WHERE is_deleted=false")
         .then((rows) => rows[0].count);
 
       const usersCount = await userModel
@@ -202,5 +218,5 @@ async function getIsUnviewed(con, id_user, id_category, posts) {
       return false;
     }
   }
-  return false;
+  return true;
 }
