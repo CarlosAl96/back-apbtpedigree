@@ -1,7 +1,7 @@
 module.exports = {
   get: (con, condition, callback) => {
     con.query(
-      "SELECT posts.*, users.posts as posts, users.username as username, users.date_joined as date_joined, users.city as city, users.state as state, users.country as country, users.picture as picture, users.email as email FROM posts INNER JOIN users ON posts.id_author = users.id " +
+      "SELECT posts.*, users.posts as posts, users.username as username, users.date_joined as date_joined, users.city as city, users.state as state, users.country as country, users.picture as picture, users.email as email, users.show_email as show_email, users.show_phone as show_phone, users.show_location as show_location FROM posts INNER JOIN users ON posts.id_author = users.id " +
         condition,
       callback
     );

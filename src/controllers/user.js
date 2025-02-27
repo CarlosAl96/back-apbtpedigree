@@ -91,6 +91,8 @@ module.exports = {
 
     if (req.file) {
       req.body.picture = req.file.filename;
+    } else {
+      req.body.picture = "";
     }
 
     try {
@@ -339,31 +341,67 @@ module.exports = {
   },
   update: async (req, res) => {
     const { id } = req.params;
+    const { authorization } = req.headers;
 
-    const fields = Object.keys(req.body)
-      .map((key) => `${key} = ?`)
-      .join(", ");
+    const token = authorization.replace("Bearer ", "");
+    const isAdmin = decodeToken(token).user.is_superuser;
+    const idUser = decodeToken(token).user.id;
 
-    const values = Object.values(data);
+    User.getById(req.con, id, async (error, row) => {
+      if (error) {
+        return res
+          .status(500)
+          .send({ response: "Ha ocurrido un error trayendo el usuario" });
+      } else {
+        if (row.length == 0) {
+          return res
+            .status(404)
+            .send({ response: "No se encontro ningun usuario con este id" });
+        }
 
-    values.push(id);
+        if (row[0].id != idUser && !isAdmin) {
+          return res.status(403).send({
+            response: "No tienes permisos para realizar esta acción",
+          });
+        }
+        if (req.file) {
+          removeFile(`users/${row[0].picture}`);
+          req.body.picture = req.file.filename;
+        }
 
-    try {
-      User.updateUser(req.con, fields, values, (error, row) => {
-        if (error) {
+        if (req.body.password && isAdmin) {
+          const genSalt = await bcrypt.genSalt(10);
+          req.body.password = await bcrypt.hash(req.body.password, genSalt);
+        } else {
+          delete req.body.password;
+        }
+
+        const fields = Object.keys(req.body)
+          .map((key) => `${key} = ?`)
+          .join(", ");
+
+        const values = Object.values(req.body);
+
+        values.push(id);
+
+        try {
+          User.updateUser(req.con, fields, values, (error, row) => {
+            if (error) {
+              return res
+                .status(500)
+                .send({ response: "Error al actualizar el usuario" });
+            } else {
+              return res.status(200).send({ response: row });
+            }
+          });
+        } catch (error) {
+          console.error(error);
           return res
             .status(500)
             .send({ response: "Error al actualizar el usuario" });
-        } else {
-          return res.status(200).send({ response: row });
         }
-      });
-    } catch (error) {
-      console.error(error);
-      return res
-        .status(500)
-        .send({ response: "Error al actualizar el usuario" });
-    }
+      }
+    });
   },
   usersLoggedInfo: async (req, res) => {
     try {
@@ -371,12 +409,7 @@ module.exports = {
         (rows) => rows[0].count
       );
 
-      const subsUsers = await User.getMembersUsers(req.con).then(
-        (rows) => rows[0].count
-      );
-      return res
-        .status(200)
-        .send({ response: { logged: loggedUsers, subs: subsUsers } });
+      return res.status(200).send({ response: { logged: loggedUsers } });
     } catch (error) {
       return res.status(500).send({
         response:
@@ -384,6 +417,40 @@ module.exports = {
           error,
       });
     }
+  },
+  getByUsername: (req, res) => {
+    const { username } = req.params;
+
+    User.getByUsername(req.con, username, (error, row) => {
+      if (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el usuario con id: " + id,
+        });
+      } else {
+        if (row.length == 0) {
+          return res.status(404).send({
+            response: "No se encontro ningun usuario con este username",
+          });
+        }
+        delete row[0].password;
+        if (!row[0].show_phone) {
+          row[0].phone_number = "";
+        }
+        if (!row[0].show_email) {
+          row[0].email = "";
+        }
+
+        if (!row[0].show_location) {
+          row[0].street = "";
+          row[0].city = "";
+          row[0].state = "";
+          row[0].country = "";
+          row[0].zip_code = "";
+        }
+
+        return res.status(200).send({ response: row[0] });
+      }
+    });
   },
   forgotPassword: (req, res) => {
     const { username } = req.body;
@@ -423,6 +490,78 @@ module.exports = {
             }
           }
         );
+      }
+    });
+  },
+
+  updatePassword: (req, res) => {
+    const { id } = req.params;
+
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const idUser = decodeToken(token).user.id;
+
+    if (idUser != id) {
+      return res.status(403).send({
+        response: "No tienes permisos para realizar esta acción",
+      });
+    }
+
+    User.getById(req.con, id, async (error, row) => {
+      if (error) {
+        return res
+          .status(500)
+          .send({ response: "Ha ocurrido un error trayendo el usuario" });
+      } else {
+        if (row.length == 0) {
+          return res.status(404).send({
+            response: "No se encontro ningun usuario con estas credenciales",
+          });
+        }
+
+        let passwordValid = false;
+
+        if (isBcryptHash(row[0].password)) {
+          passwordValid = await validateBcryptPassword(
+            req.body.oldPassword,
+            row[0].password
+          );
+        } else if (isPBKDF2Hash(row[0].password)) {
+          const [, , iterations, salt, storedHash] = row[0].password.split("$");
+          passwordValid = await validatePBKDF2Password(
+            req.body.oldPassword,
+            storedHash,
+            salt,
+            parseInt(iterations, 10)
+          );
+        }
+        if (passwordValid) {
+          const genSalt = await bcrypt.genSalt(10);
+          const newPassword = await bcrypt.hash(req.body.newPassword, genSalt);
+
+          User.updateUser(
+            req.con,
+            `password = '${newPassword}'`,
+            row[0].id,
+            async (err, result) => {
+              if (err) {
+                return res.status(500).send({
+                  response: "Ha ocurrido un error actualizando la contraseña",
+                });
+              } else {
+                await User.deleteTokenResetPassword(req.con, token);
+                return res.status(200).send({
+                  response: "Contraseña actualizada",
+                });
+              }
+            }
+          );
+        } else {
+          return res
+            .status(500)
+            .send({ response: "La contraseña no es correcta" });
+        }
       }
     });
   },

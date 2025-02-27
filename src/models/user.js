@@ -56,9 +56,7 @@ module.exports = {
   getLoggedUsers: (con) => {
     return con
       .promise()
-      .query(
-        `SELECT COUNT(*) as count FROM users WHERE subscription=0 AND stateOnline=1`
-      )
+      .query(`SELECT COUNT(*) as count FROM users WHERE stateOnline=1`)
       .then(([rows]) => rows);
   },
 

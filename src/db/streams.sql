@@ -1,0 +1,40 @@
+CREATE TABLE streams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    proposed_start_date DATETIME NOT NULL,
+    actual_start_date DATETIME,
+    proposed_end_date DATETIME NOT NULL,
+    actual_end_date DATETIME,
+    user_count INT DEFAULT 0,
+    price DECIMAL(10, 2) NOT NULL,
+    chat_message_count INT DEFAULT 0,
+    title VARCHAR(255) NOT NULL,
+    is_live BOOLEAN DEFAULT FALSE,
+    description TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    stream_id INT NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    payment_method VARCHAR(50) NOT NULL,
+    transaction_id VARCHAR(100) NOT NULL,
+    payment_status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE
+);
+
+CREATE TABLE stream_chat_messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    stream_id INT NOT NULL,
+    user_id INT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

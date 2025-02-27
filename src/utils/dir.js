@@ -13,7 +13,9 @@ function removeFile(path) {
       console.log("Ruta incorrecta");
     }
     fs.unlinkSync(`src/uploads/${path}`);
-  } catch (error) {}
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 function renameAndMoveFile(actualPath, newPath) {

@@ -27,8 +27,18 @@ const upload = multer({ storage });
 app.get("/users", userAuthenticated, userController.index);
 app.get("/usersSearch", userAuthenticated, userController.searchUsers);
 app.get("/users/:id", userAuthenticated, userController.readUser);
+app.get(
+  "/users/:username/getByUsername",
+  userAuthenticated,
+  userController.getByUsername
+);
 app.delete("/users/:id", userAuthenticated, userController.delete);
-app.patch("/users/:id", userAuthenticated, userController.update);
+app.patch(
+  "/users/:id",
+  userAuthenticated,
+  upload.single("picture"),
+  userController.update
+);
 app.patch("/users/:id/forumBan", userAuthenticated, userController.forumBan);
 app.patch("/users/:id/disable", userAuthenticated, userController.disable);
 app.get("/usersInfo", userController.usersLoggedInfo);
@@ -38,4 +48,5 @@ app.post("/users/logout", userAuthenticated, userController.logout);
 
 app.post("/users/passwordReset", userController.forgotPassword);
 app.post("/users/passwordReset/:token", userController.changePassword);
+app.patch("/users/:id/updatePassword", userController.updatePassword);
 module.exports = app;
