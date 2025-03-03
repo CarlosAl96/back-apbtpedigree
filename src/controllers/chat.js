@@ -117,8 +117,6 @@ module.exports = {
     const { authorization } = req.headers;
     var condition = "";
 
-    console.log(id);
-
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
     var chatResult = await new Promise((resolve, reject) => {
@@ -126,8 +124,6 @@ module.exports = {
         if (err) {
           return reject("Ha ocurrido un error: " + err);
         }
-        console.log(result[0]);
-
         resolve(result[0]);
       });
     });
@@ -138,7 +134,6 @@ module.exports = {
     if (user.id == chatResult.id_user_two) {
       condition = `viewed_two=true`;
     }
-    console.log(condition);
 
     chat.update(
       req.con,

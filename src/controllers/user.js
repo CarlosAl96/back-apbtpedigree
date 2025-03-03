@@ -1,4 +1,6 @@
 const User = require("../models/user");
+const Payment = require("../models/payment");
+const Pedigree = require("../models/pedigree");
 const { createAccessToken, createRefreshToken } = require("../utils/jwt");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -33,22 +35,22 @@ module.exports = {
       );
 
       condition += `ORDER BY ${orderBy} LIMIT ${size} OFFSET ${offset} `;
-      console.log(condition);
+
       User.get(req.con, condition, (error, rows) => {
         if (error) {
-          res.status(500).send({
+          return res.status(500).send({
             response: "Ha ocurrido un error listando los users: " + error,
           });
         } else {
-          console.log(usersCount);
-          res
+          return res
             .status(200)
             .send({ response: { data: rows, totalRows: usersCount } });
         }
       });
     } catch (error) {
-      console.error("Ha ocurrido un error listando los users: ", error);
-      throw error;
+      return res.status(500).send({
+        response: "Ha ocurrido un error listando los users: " + error,
+      });
     }
   },
 
@@ -69,7 +71,7 @@ module.exports = {
 
   readUser: (req, res) => {
     const { id } = req.params;
-    console.log(id);
+
     User.getById(req.con, id, (error, row) => {
       if (error) {
         res.status(500).send({
@@ -130,8 +132,6 @@ module.exports = {
       req.body.password = await bcrypt.hash(req.body.password, genSalt);
       req.body.ip = req.ip || req.ips;
 
-      console.log(req.body);
-
       const savedUser = await new Promise((resolve, reject) => {
         User.saveUser(req.con, req.body, (error, result) => {
           if (error) return reject(error);
@@ -141,11 +141,10 @@ module.exports = {
 
       res.status(200).send({ response: savedUser });
     } catch (error) {
-      console.error(error);
       if (req.body.picture) {
         removeFile(`users/${req.body.picture}`);
       }
-      res.status(500).send({
+      return res.status(500).send({
         response:
           "Ha ocurrido un error registrando al usuario: " + error.message,
       });
@@ -155,10 +154,8 @@ module.exports = {
     const { username, password } = req.body;
 
     User.getByEmailOrUsername(req.con, username, async (error, row) => {
-      console.log(row[0]);
-
       if (error) {
-        res
+        return res
           .status(500)
           .send({ response: "Ha ocurrido un error trayendo el usuario" });
       } else {
@@ -226,8 +223,6 @@ module.exports = {
   logout: async (req, res) => {
     const { id } = req.body;
 
-    console.log(id);
-
     try {
       await User.updateLogoutData(req.con, id).then((rows) => rows);
 
@@ -250,8 +245,6 @@ module.exports = {
     const token = authorization.replace("Bearer ", "");
     const isAdmin = decodeToken(token).user.is_superuser;
 
-    console.log(isAdmin);
-
     try {
       if (isAdmin) {
         User.delete(req.con, id, (error, row) => {
@@ -269,7 +262,6 @@ module.exports = {
         });
       }
     } catch (error) {
-      console.error(error);
       return res.status(500).send({ response: "Error al eliminar el usuario" });
     }
   },
@@ -280,8 +272,6 @@ module.exports = {
 
     const token = authorization.replace("Bearer ", "");
     const isAdmin = decodeToken(token).user.is_superuser;
-
-    console.log(isAdmin);
 
     try {
       if (isAdmin) {
@@ -300,7 +290,6 @@ module.exports = {
         });
       }
     } catch (error) {
-      console.error(error);
       return res
         .status(500)
         .send({ response: "Error al actualizar el usuario" });
@@ -313,8 +302,6 @@ module.exports = {
 
     const token = authorization.replace("Bearer ", "");
     const isAdmin = decodeToken(token).user.is_superuser;
-
-    console.log(isAdmin);
 
     try {
       if (isAdmin) {
@@ -333,7 +320,6 @@ module.exports = {
         });
       }
     } catch (error) {
-      console.error(error);
       return res
         .status(500)
         .send({ response: "Error al actualizar el usuario" });
@@ -395,7 +381,6 @@ module.exports = {
             }
           });
         } catch (error) {
-          console.error(error);
           return res
             .status(500)
             .send({ response: "Error al actualizar el usuario" });
@@ -469,8 +454,6 @@ module.exports = {
 
         const token = createAccessToken(row[0], true);
 
-        console.log(token);
-
         await User.deleteTokenByUserIdResetPassword(req.con, row[0].id);
 
         User.saveTokenResetPassword(
@@ -482,7 +465,6 @@ module.exports = {
                 response: "Ha ocurrido un error guardando el token: " + err,
               });
             } else {
-              console.log(result);
               await sendResetEmail(row[0].email, token);
               return res.status(200).send({
                 response: "Email sended",
@@ -610,6 +592,51 @@ module.exports = {
         );
       }
     });
+  },
+
+  dashboardData: async (req, res) => {
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const isAdmin = decodeToken(token).user.is_superuser;
+
+    if (!isAdmin) {
+      return res.status(403).send({
+        response: "No estás autorizado",
+      });
+    }
+
+    try {
+      const users = await User.getCount(req.con, "").then(
+        (rows) => rows[0].count
+      );
+
+      const payments = await Payment.getCount(req.con, "").then(
+        (rows) => rows[0].count
+      );
+
+      const pedigrees = await Pedigree.getCount(req.con, "").then(
+        (rows) => rows[0].count
+      );
+
+      const paymentsData = await Payment.getData(req.con).then((rows) => rows);
+
+      const usersData = await User.getData(req.con).then((rows) => rows);
+
+      return res.status(200).send({
+        response: {
+          users: users,
+          payments: payments,
+          pedigrees: pedigrees,
+          paymentsData: paymentsData,
+          usersData: usersData,
+        },
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error trayendo los datos: " + error,
+      });
+    }
   },
 };
 

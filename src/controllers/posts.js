@@ -54,8 +54,6 @@ module.exports = {
       .getCount(req.con, condition)
       .then((rows) => rows[0].count);
 
-    console.log(condition);
-
     condition += ` ORDER BY first DESC, created_at ${order} LIMIT ${size} OFFSET ${offset}`;
 
     postsModel.get(req.con, condition, (err, result) => {
@@ -84,8 +82,6 @@ module.exports = {
     });
   },
   store: (req, res) => {
-    console.log(req.body);
-
     req.body.first = false;
 
     const { authorization } = req.headers;
@@ -228,8 +224,6 @@ module.exports = {
 async function updateRepliesInfo(con, id_topic, id_category) {
   let condition = ` WHERE id_topic=${id_topic} AND is_deleted=false AND first=false`;
   const countPosts = await postsModel.getCount(con, condition);
-
-  console.log(countPosts[0].count);
 
   topicsModel.setReplies(con, countPosts[0].count, id_topic);
 

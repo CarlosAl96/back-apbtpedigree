@@ -60,7 +60,6 @@ module.exports = {
       }
       return true;
     } catch (error) {
-      console.error("Error en changeOwner:", error);
       throw error;
     }
   },

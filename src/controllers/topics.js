@@ -59,8 +59,6 @@ module.exports = {
       .getCount(req.con, condition)
       .then((rows) => rows[0].count);
 
-    console.log(condition);
-
     condition += ` ORDER BY sticky DESC, is_announcement DESC, updated_at DESC LIMIT ${size} OFFSET ${offset}`;
 
     topicsModel.get(req.con, condition, async (err, result) => {
@@ -212,7 +210,7 @@ module.exports = {
               await updatePostsUsers(req.con, result[0].id_author);
               req.io.emit("forum", {
                 id_topic: result[0].id_topic,
-                id_category: esult[0].id_categories,
+                id_category: result[0].id_categories,
               });
               return res.status(200).send({
                 response: "succes",
@@ -436,15 +434,21 @@ async function updateLastPost(con, id_category) {
     id_category
   );
 
-  if (lastPostCategory) {
-    const objLastPost = {
+  let objLastPost = {};
+
+  if (lastPostCategory.length) {
+    objLastPost = {
       date: lastPostCategory[0].created_at,
       user: lastPostCategory[0].id_author,
       author: lastPostCategory[0].username,
     };
-
-    await Category.setLastPost(con, JSON.stringify(objLastPost), id_category);
   }
+
+  await Category.setLastPost(
+    con,
+    (objLastPost = !{} ? JSON.stringify(objLastPost) : ""),
+    id_category
+  );
 }
 
 async function updatePostsUsers(con, id_user) {

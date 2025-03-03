@@ -89,7 +89,6 @@ module.exports = {
                 response: "Ha ocurrido un error creando el mensaje: " + err,
               });
             }
-            console.log(result.insertId);
             req.body.id_chat = result.insertId;
             message.store(req.con, req.body, (err, result) => {
               if (err) {
@@ -152,8 +151,6 @@ module.exports = {
     const user = decodeToken(token).user;
 
     const msg = await message.getById(req.con, id).then((rows) => rows[0]);
-
-    console.log(msg);
 
     if (!msg) {
       return res.status(404).send({

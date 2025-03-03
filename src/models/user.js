@@ -158,4 +158,13 @@ module.exports = {
       .query(`DELETE FROM user_sessions WHERE user_id=${user_id}`)
       .then(([rows]) => rows);
   },
+
+  getData: (con) => {
+    return con
+      .promise()
+      .query(
+        `SELECT DATE_FORMAT(date_joined, '%Y-%m') AS month, COUNT(*) AS count FROM users WHERE date_joined >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY month ORDER BY month ASC;`
+      )
+      .then(([rows]) => rows);
+  },
 };

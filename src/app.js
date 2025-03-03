@@ -20,6 +20,9 @@ const topicsRoutes = require("./routes/topics");
 const postsRoutes = require("./routes/posts");
 const chatRoutes = require("./routes/chat");
 const messageRoutes = require("./routes/message");
+const streamRoutes = require("./routes/stream");
+const paymentRoutes = require("./routes/payment");
+const streamMessageRoutes = require("./routes/streamMessage");
 
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.json({ limit: "50mb" }));
@@ -41,6 +44,10 @@ app.use(basePath, topicsRoutes);
 app.use(basePath, postsRoutes);
 app.use(basePath, chatRoutes);
 app.use(basePath, messageRoutes);
+app.use(basePath, streamRoutes);
+app.use(basePath, paymentRoutes);
+app.use(basePath, streamMessageRoutes);
+
 // Escuchar conexiones
 io.on("connection", (socket) => {
   console.log("Usuario conectado:", socket.id);

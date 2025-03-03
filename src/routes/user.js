@@ -49,4 +49,5 @@ app.post("/users/logout", userAuthenticated, userController.logout);
 app.post("/users/passwordReset", userController.forgotPassword);
 app.post("/users/passwordReset/:token", userController.changePassword);
 app.patch("/users/:id/updatePassword", userController.updatePassword);
+app.get("/dashboard", userAuthenticated, userController.dashboardData);
 module.exports = app;

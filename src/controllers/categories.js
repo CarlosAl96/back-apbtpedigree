@@ -20,8 +20,6 @@ module.exports = {
       (rows) => rows[0].count
     );
 
-    console.log(categoriesCount);
-
     Category.get(req.con, condition, async (err, result) => {
       if (err) {
         return res.status(500).send({
@@ -101,7 +99,6 @@ module.exports = {
       query += `${keys[i]}='${values[i]}',`;
     }
     query = query.substring(0, query.length - 1);
-    console.log(query);
 
     query += ` where id =${id}`;
     Category.update(req.con, query, (err, result) => {

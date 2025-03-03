@@ -60,22 +60,22 @@ module.exports = {
       ).then((rows) => rows[0].count);
 
       condition += ` ORDER BY ${orderBy} LIMIT ${size} OFFSET ${offset}`;
-      console.log(condition);
+
       Pedigree.get(req.con, params, condition, (error, rows) => {
         if (error) {
-          res.status(500).send({
+          return res.status(500).send({
             response: "Ha ocurrido un error listando los pedigrees: " + error,
           });
         } else {
-          console.log(pedigreesCount);
-          res
+          return res
             .status(200)
             .send({ response: { data: rows, totalRows: pedigreesCount } });
         }
       });
     } catch (error) {
-      console.error("Ha ocurrido un error listando los pedigrees: ", error);
-      throw error;
+      return res.status(500).send({
+        response: "Ha ocurrido un error listando los pedigrees: " + error,
+      });
     }
   },
   getById: async (req, res) => {
@@ -86,13 +86,7 @@ module.exports = {
         (rows) => rows[0]
       );
 
-      Pedigree.updateViewsCount(req.con, id, (error, rows) => {
-        if (error) {
-          console.log(error);
-        } else {
-          console.log(rows);
-        }
-      });
+      Pedigree.updateViewsCount(req.con, id, (error, rows) => {});
 
       let generation1 = [];
       let generation2 = [];
@@ -153,7 +147,7 @@ module.exports = {
 
       const offsprings = await Pedigree.getChildren(req.con, pedigree.id);
 
-      res.status(200).send({
+      return res.status(200).send({
         response: {
           pedigree,
           siblings,
@@ -165,7 +159,7 @@ module.exports = {
         },
       });
     } catch (error) {
-      res.status(500).send({
+      return res.status(500).send({
         response:
           "Ha ocurrido un error trayendo el pedigree con id: " +
           id +
@@ -178,15 +172,11 @@ module.exports = {
   getLogs: async (req, res) => {},
 
   store: async (req, res) => {
-    console.log(req.body);
-
     req.body.img = "";
 
     if (req.file) {
       req.body.img = req.file.filename;
     }
-
-    console.log(req.body);
 
     Pedigree.savePedigree(req.con, req.body, (error, rows) => {
       if (error) {
@@ -205,7 +195,6 @@ module.exports = {
 
   update: (req, res) => {
     const { id } = req.params;
-    console.log(req.body);
 
     if (req.file) {
       req.body.img = req.file.filename;
@@ -258,7 +247,6 @@ module.exports = {
         }
       });
     } catch (error) {
-      console.error(error);
       return res
         .status(500)
         .send({ response: "Error al actualizar el Pedigree" });
@@ -313,7 +301,6 @@ module.exports = {
           .send({ response: "Pedigree actualizado correctamente" });
       }
     } catch (error) {
-      console.error(error);
       return res
         .status(500)
         .send({ response: "Error al actualizar el Pedigree" });
@@ -357,7 +344,6 @@ module.exports = {
         }
       });
     } catch (error) {
-      console.error(error);
       return res
         .status(500)
         .send({ response: "Error al actualizar el Pedigree" });
@@ -368,8 +354,6 @@ module.exports = {
     const { id } = req.params;
 
     req.body.img = "";
-
-    console.log(req.body);
 
     if (req.body.old_img) {
       removeFile(`pedigrees/${req.body.old_img}`);
