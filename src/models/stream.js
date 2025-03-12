@@ -45,7 +45,7 @@ module.exports = {
   },
   store: (con, data, callback) => {
     con.query(
-      `insert into streams (title, description, price, proposed_start_date, proposed_end_date) values ('${data.title}', '${data.description}', ${data.price}, '${data.proposed_start_date}', '${data.proposed_end_date}')`,
+      `insert into streams (title, description, price, url, proposed_start_date, proposed_end_date) values ('${data.title}', '${data.description}', ${data.price}, '${data.url}', '${data.proposed_start_date}', '${data.proposed_end_date}')`,
       callback
     );
   },

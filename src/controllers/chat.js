@@ -119,6 +119,7 @@ module.exports = {
 
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
+
     var chatResult = await new Promise((resolve, reject) => {
       chat.getById(req.con, id, (err, result) => {
         if (err) {
@@ -127,6 +128,10 @@ module.exports = {
         resolve(result[0]);
       });
     });
+
+    if (!chatResult) {
+      return res.status(200).send({ response: "success" });
+    }
 
     if (user.id == chatResult.id_user_one) {
       condition = `viewed_one=true`;
@@ -145,7 +150,7 @@ module.exports = {
           });
         }
 
-        res.status(200).send({ response: "success" });
+        return res.status(200).send({ response: "success" });
       }
     );
   },

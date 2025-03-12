@@ -1,6 +1,8 @@
+const axios = require("axios");
 const Payment = require("../models/payment");
 const Stream = require("../models/stream");
 const { decodeToken } = require("../utils/jwt");
+require("dotenv").config();
 
 module.exports = {
   get: async (req, res) => {
@@ -50,6 +52,7 @@ module.exports = {
 
   paymentVerify: (req, res) => {
     const { authorization } = req.headers;
+
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
     const isAdmin = user.is_superuser;
@@ -93,6 +96,114 @@ module.exports = {
       });
     });
   },
+  createOrder: async (req, res) => {
+    try {
+      const order = {
+        intent: "CAPTURE",
+        purchase_units: [
+          {
+            amount: {
+              currency_code: "USD",
+              value: req.body.price.toString(),
+              breakdown: {
+                item_total: {
+                  currency_code: "USD",
+                  value: req.body.price.toString(),
+                },
+              },
+            },
+            items: [
+              {
+                name: req.body.title,
+                quantity: "1",
+                category: "DIGITAL_GOODS",
+                unit_amount: {
+                  currency_code: "USD",
+                  value: req.body.price.toString(),
+                },
+              },
+            ],
+          },
+        ],
+      };
 
-  store: async (req, res) => {},
+      const params = new URLSearchParams();
+      params.append("grant_type", "client_credentials");
+
+      const responseAuth = await axios.post(
+        `${process.env.PAYPAL_SANDBOX_API}/v1/oauth2/token`,
+        params,
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          auth: {
+            username: process.env.PAYPAL_CLIENT_ID,
+            password: process.env.PAYPAL_SECRET,
+          },
+        }
+      );
+
+      const response = await axios.post(
+        `${process.env.PAYPAL_SANDBOX_API}/v2/checkout/orders`,
+        order,
+        {
+          headers: {
+            Authorization: `Bearer ${responseAuth.data.access_token}`,
+          },
+        }
+      );
+
+      return res.status(200).send({ response: response.data });
+    } catch (error) {
+      console.log(error);
+
+      return res.status(500).send("Something goes wrong ERROR: " + error);
+    }
+  },
+  store: async (req, res) => {
+    const { authorization } = req.headers;
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    const { order, stream } = req.body;
+
+    try {
+      const response = await axios.get(
+        `${process.env.PAYPAL_SANDBOX_API}/v2/checkout/orders/${order}`,
+        {
+          auth: {
+            username: process.env.PAYPAL_CLIENT_ID,
+            password: process.env.PAYPAL_SECRET,
+          },
+        }
+      );
+
+      if (response.data.status == "COMPLETED") {
+        const payInfo = {
+          user_id: user.id,
+          stream_id: stream.id,
+          amount: stream.price,
+          payment_method: "PayPal",
+          transaction_id: order,
+          payment_status: response.data.status,
+        };
+
+        Payment.store(req.con, payInfo, (error, result) => {
+          if (error) {
+            return res
+              .status(500)
+              .json({ message: "Internal Server error ERROR: " + error });
+          }
+          return res.status(200).send({ response: "success" });
+        });
+      } else {
+        return res.status(400).send({ response: "not paid" });
+      }
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ message: "Internal Server error ERROR: " + error });
+    }
+  },
 };

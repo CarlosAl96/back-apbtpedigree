@@ -4,6 +4,7 @@ const { userAuthenticated } = require("../middlewares/auth");
 
 const app = express.Router();
 app.get("/payment", userAuthenticated, paymentController.get);
+app.post("/payment/order", userAuthenticated, paymentController.createOrder);
 app.post("/payment", userAuthenticated, paymentController.store);
 app.get("/paymentVerify", userAuthenticated, paymentController.paymentVerify);
 

@@ -16,6 +16,13 @@ module.exports = {
           response: "Ha ocurrido un error trayendo el chat: " + error,
         });
       }
+
+      if (!result.length) {
+        return res.status(400).send({
+          response: "Ha ocurrido un error trayendo el chat ",
+        });
+      }
+
       if (
         result[0].id_user_one == user.id ||
         result[0].id_user_two == user.id

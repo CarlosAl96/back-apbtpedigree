@@ -34,7 +34,7 @@ module.exports = {
     return con
       .promise()
       .query(
-        `SELECT EXISTS (SELECT 1 FROM payments WHERE user_id = ${idUser} AND stream_id = ${idStream} AND payment_status = 'completed') AS has_paid;`
+        `SELECT EXISTS (SELECT 1 FROM payments WHERE user_id = ${idUser} AND stream_id = ${idStream} AND payment_status = 'COMPLETED') AS has_paid;`
       )
       .then(([rows]) => rows);
   },
