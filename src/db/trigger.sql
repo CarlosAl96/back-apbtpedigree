@@ -1,7 +1,7 @@
 DELIMITER $$
 
 CREATE TRIGGER log_dog_changes
-AFTER UPDATE ON dogsbackup2
+AFTER UPDATE ON  dogsBackUp2
 FOR EACH ROW
 BEGIN
     -- Registro de cambios en la columna 'name'

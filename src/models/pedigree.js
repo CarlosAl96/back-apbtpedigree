@@ -1,53 +1,53 @@
 module.exports = {
   get: (con, params, condition, callback) => {
-    con.query(`SELECT * FROM dogsbackup2 ${condition}`, params, callback);
+    con.query(`SELECT * FROM  dogsBackUp2 ${condition}`, params, callback);
   },
   getCount: (con, params, condition) => {
     return con
       .promise()
-      .query(`SELECT COUNT(*) as count FROM dogsbackup2 ${condition}`, params)
+      .query(`SELECT COUNT(*) as count FROM  dogsBackUp2 ${condition}`, params)
       .then(([rows]) => rows);
   },
   getById: (con, id) => {
     return con
       .promise()
-      .query(`SELECT * FROM dogsbackup2 WHERE id=${id}`)
+      .query(`SELECT * FROM  dogsBackUp2 WHERE id=${id}`)
       .then(([rows]) => rows);
   },
 
   updateViewsCount: (con, id, callback) => {
-    con.query(`UPDATE dogsbackup2 SET seen=seen+1 WHERE id=${id}`, callback);
+    con.query(`UPDATE  dogsBackUp2 SET seen=seen+1 WHERE id=${id}`, callback);
   },
 
   getFather: (con, idFather) => {
     return con
       .promise()
-      .query(`SELECT * FROM dogsbackup2 WHERE id=${idFather}`)
+      .query(`SELECT * FROM  dogsBackUp2 WHERE id=${idFather}`)
       .then(([rows]) => rows);
   },
 
   getMother: (con, idMother) => {
     return con
       .promise()
-      .query(`SELECT * FROM dogsbackup2 WHERE id=${idMother}`)
+      .query(`SELECT * FROM  dogsBackUp2 WHERE id=${idMother}`)
       .then(([rows]) => rows);
   },
 
   changePermissions: (con, private, id, callback) => {
     con.query(
-      `UPDATE dogsbackup2 SET private=${private} WHERE id=${id}`,
+      `UPDATE  dogsBackUp2 SET private=${private} WHERE id=${id}`,
       callback
     );
   },
 
   updateImg: (con, img, id, callback) => {
-    con.query(`UPDATE dogsbackup2 SET img='${img}' WHERE id=${id}`, callback);
+    con.query(`UPDATE  dogsBackUp2 SET img='${img}' WHERE id=${id}`, callback);
   },
 
   changeOwnership: (con, id, idNewOwner, owner, description) => {
     try {
       const query = `
-        UPDATE dogsbackup2 
+        UPDATE  dogsBackUp2 
         SET user_id = ?, owner = ?, descriptionOwner = ? 
         WHERE id = ?`;
 
@@ -65,7 +65,7 @@ module.exports = {
   },
 
   delete: (con, id, callback) => {
-    con.query(`DELETE FROM dogsbackup2 WHERE id=${id}`, callback);
+    con.query(`DELETE FROM  dogsBackUp2 WHERE id=${id}`, callback);
   },
 
   getBrothers: (con, id, idFather, idMother) => {
@@ -80,9 +80,9 @@ module.exports = {
         mother.name AS mother_name, 
         mother.beforeNameTitles AS mother_beforeNameTitles, 
         mother.afterNameTitles AS mother_afterNameTitles 
-      FROM dogsbackup2 AS siblings
-      LEFT JOIN dogsbackup2 AS father ON siblings.father_id = father.id
-      LEFT JOIN dogsbackup2 AS mother ON siblings.mother_id = mother.id
+      FROM  dogsBackUp2 AS siblings
+      LEFT JOIN  dogsBackUp2 AS father ON siblings.father_id = father.id
+      LEFT JOIN  dogsBackUp2 AS mother ON siblings.mother_id = mother.id
       WHERE 
         (siblings.father_id = ? OR siblings.mother_id = ?)
         AND siblings.id != ? AND siblings.mother_id != 0 AND siblings.father_id != 0`,
@@ -103,9 +103,9 @@ module.exports = {
         mother.name AS mother_name, 
         mother.beforeNameTitles AS mother_beforeNameTitles, 
         mother.afterNameTitles AS mother_afterNameTitles 
-      FROM dogsbackup2 AS children
-      LEFT JOIN dogsbackup2 AS father ON children.father_id = father.id
-      LEFT JOIN dogsbackup2 AS mother ON children.mother_id = mother.id
+      FROM  dogsBackUp2 AS children
+      LEFT JOIN  dogsBackUp2 AS father ON children.father_id = father.id
+      LEFT JOIN  dogsBackUp2 AS mother ON children.mother_id = mother.id
       WHERE children.father_id = ? OR children.mother_id = ?`,
         [id, id]
       )
@@ -114,7 +114,7 @@ module.exports = {
 
   savePedigree: (con, data, callback) => {
     con.query(
-      `INSERT INTO dogsbackup2 (
+      `INSERT INTO  dogsBackUp2 (
           name,
           beforeNameTitles,
           afterNameTitles,
@@ -171,7 +171,7 @@ module.exports = {
 
   updatePedigree: (con, data, id, callback) => {
     con.query(
-      `UPDATE dogsbackup2 SET
+      `UPDATE  dogsBackUp2 SET
         name = ?,
         beforeNameTitles = ?,
         afterNameTitles = ?,
@@ -213,12 +213,12 @@ module.exports = {
   },
 
   deletePedigree: (con, id, callback) => {
-    con.query(`DELETE FROM dogsbackup2 WHERE id = ?`, [id], callback);
+    con.query(`DELETE FROM  dogsBackUp2 WHERE id = ?`, [id], callback);
   },
 
   updatePrivateStatus: (con, id, privateStatus, callback) => {
     con.query(
-      `UPDATE dogsbackup2 
+      `UPDATE  dogsBackUp2 
        SET private = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [privateStatus, id],
@@ -228,7 +228,7 @@ module.exports = {
 
   changeOwner: (con, id, newUserId, newDescriptionOwner, callback) => {
     con.query(
-      `UPDATE dogsbackup2 
+      `UPDATE  dogsBackUp2 
        SET user_id = ?, 
            descriptionOwner = ?, 
            updated_at = CURRENT_TIMESTAMP
