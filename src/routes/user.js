@@ -25,6 +25,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.get("/users", userAuthenticated, userController.index);
+app.get("/sessionStatus", userAuthenticated, userController.sessionStatus);
 app.get("/usersSearch", userAuthenticated, userController.searchUsers);
 app.get("/users/:id", userAuthenticated, userController.readUser);
 app.get(

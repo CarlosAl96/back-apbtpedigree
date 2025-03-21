@@ -13,5 +13,6 @@ app.patch(
   userAuthenticated,
   streamController.reAnnounce
 );
+app.get("/stream/proxy/:token", streamController.proxy);
 
 module.exports = app;

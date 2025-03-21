@@ -1,6 +1,10 @@
 const Stream = require("../models/stream");
 const Payment = require("../models/payment");
 const StreamMessage = require("../models/streamMessage");
+const axios = require("axios");
+const User = require("../models/user");
+const path = require("path");
+
 const { decodeToken } = require("../utils/jwt");
 
 module.exports = {
@@ -73,6 +77,10 @@ module.exports = {
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
 
+    if (!req.body.price) {
+      req.body.price = 0;
+    }
+
     if (!user.is_superuser) {
       return res.status(403).send({
         response: "No tienes permisos para realizar esta acción",
@@ -142,6 +150,47 @@ module.exports = {
     }
   },
 
+  proxy: async (req, res) => {
+    const { token } = req.params;
+    const origin = req.headers.origin || req.headers.referer || "";
+
+    // if (origin != process.env.FRONTEND_URL) {
+    //   return res.status(403).send({ response: "No estás autorizado" });
+    // }
+
+    const session = await User.getSession(req.con, token);
+
+    if (session.length === 0) {
+      return res.status(401).send({ response: "El token es inválido" });
+    }
+
+    if (decodeToken(token).exp < new Date().getTime()) {
+      return res.status(401).send({ response: "El token ha expirado" });
+    }
+
+    Stream.getActive(req.con, async (err, result) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el stream " + err,
+        });
+      }
+
+      if (!result.length) {
+        return res.status(404).send({
+          response: "No hay streams activos",
+        });
+      }
+
+      try {
+        res.redirect(result[0].url);
+      } catch (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el stream " + error,
+        });
+      }
+    });
+  },
+
   setLive: (req, res) => {
     const { id } = req.params;
     const { value, init, end } = req.body;
@@ -179,22 +228,17 @@ module.exports = {
                 .status(500)
                 .send({ response: "Error al actualizar el stream" });
             }
-            const streamMessageCount = await StreamMessage.getCount(
-              req.con,
-              id
-            ).then((rows) => rows[0].count);
+            // const streamMessageCount = await StreamMessage.getCount(
+            //   req.con,
+            //   id
+            // ).then((rows) => rows[0].count);
             const paymentsCount = await Payment.getCountByStream(
               req.con,
               id
             ).then((rows) => rows[0].count);
 
-            await StreamMessage.deleteByStream(req.con, id);
-            await Stream.setCountsPaymentsMessages(
-              req.con,
-              streamMessageCount,
-              paymentsCount,
-              id
-            );
+            // await StreamMessage.deleteByStream(req.con, id);
+            await Stream.setCountsPaymentsMessages(req.con, paymentsCount, id);
 
             req.io.emit("unlive", {});
             return res.status(200).send({ response: "succes" });

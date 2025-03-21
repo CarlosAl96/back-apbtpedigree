@@ -5,6 +5,26 @@ module.exports = {
   getById: (con, id, callback) => {
     con.query(`SELECT * FROM forum_categories WHERE id=${id}`, callback);
   },
+  getByOrder: (con, order) => {
+    return con
+      .promise()
+      .query(`SELECT * FROM forum_categories WHERE num_order=${order} LIMIT 1`)
+      .then(([rows]) => rows);
+  },
+  getLast: (con) => {
+    return con
+      .promise()
+      .query(`SELECT * FROM forum_categories ORDER BY num_order DESC LIMIT 1`)
+      .then(([rows]) => rows);
+  },
+  setOrder: (con, order, id) => {
+    return con
+      .promise()
+      .query(
+        `UPDATE forum_categories SET num_order=${order} WHERE id=${id} LIMIT 1`
+      )
+      .then(([rows]) => rows);
+  },
   getCount: (con) => {
     return con
       .promise()
@@ -13,7 +33,7 @@ module.exports = {
   },
   store: (con, data, callback) => {
     con.query(
-      `INSERT INTO forum_categories (name,description,moderators,topics,posts,last_post) VALUES('${data.name}','${data.description}','${data.moderators}',0,0,'')`,
+      `INSERT INTO forum_categories (name,description,moderators,topics,posts,last_post,num_order) VALUES('${data.name}','${data.description}','${data.moderators}',0,0,'',${data.num_order})`,
       callback
     );
   },

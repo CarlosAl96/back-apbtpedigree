@@ -14,12 +14,10 @@ module.exports = {
       .query(`SELECT COUNT(*) as count FROM streams ${condition}`)
       .then(([rows]) => rows);
   },
-  setCountsPaymentsMessages: (con, messages, payments, id) => {
+  setCountsPaymentsMessages: (con, payments, id) => {
     return con
       .promise()
-      .query(
-        `UPDATE streams SET user_count=${payments}, chat_message_count=${messages} WHERE id=${id}`
-      )
+      .query(`UPDATE streams SET user_count=${payments} WHERE id=${id}`)
       .then(([rows]) => rows);
   },
   setLive: (con, id, init, callback) => {

@@ -169,14 +169,15 @@ module.exports = {
     }
   },
 
-  getLogs: async (req, res) => {},
-
   store: async (req, res) => {
     req.body.img = "";
 
     if (req.file) {
       req.body.img = req.file.filename;
     }
+
+    console.log(req.body);
+    
 
     Pedigree.savePedigree(req.con, req.body, (error, rows) => {
       if (error) {
@@ -205,6 +206,8 @@ module.exports = {
 
     Pedigree.updatePedigree(req.con, req.body, id, (error, rows) => {
       if (error) {
+        console.log(error);
+
         res.status(500).send({
           response:
             "Ha ocurrido un error actualizando el pedigree, error: " + error,
@@ -220,7 +223,7 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const userId = decodeToken(token).user.id;
+    const user = decodeToken(token).user;
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
@@ -231,7 +234,7 @@ module.exports = {
         return res.status(404).send({ response: "Pedigree no encontrado" });
       }
 
-      if (pedigree.user_id !== userId) {
+      if (pedigree.user_id !== user.id && !user.is_superuser) {
         return res
           .status(403)
           .send({ response: "No tienes permiso para editar este Pedigree" });
@@ -259,7 +262,7 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const userId = decodeToken(token).user.id;
+    const userData = decodeToken(token).user;
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
@@ -270,7 +273,7 @@ module.exports = {
         return res.status(404).send({ response: "Pedigree no encontrado" });
       }
 
-      if (pedigree.user_id !== userId) {
+      if (pedigree.user_id !== userData.id && !userData.is_superuser) {
         return res
           .status(403)
           .send({ response: "No tienes permiso para editar este Pedigree" });
@@ -313,7 +316,7 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const userId = decodeToken(token).user.id;
+    const user = decodeToken(token).user;
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
@@ -324,7 +327,7 @@ module.exports = {
         return res.status(404).send({ response: "Pedigree no encontrado" });
       }
 
-      if (pedigree.user_id !== userId) {
+      if (pedigree.user_id !== user.id && !user.is_superuser) {
         return res
           .status(403)
           .send({ response: "No tienes permiso para editar este Pedigree" });

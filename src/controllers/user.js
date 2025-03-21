@@ -204,7 +204,7 @@ module.exports = {
             (rows) => rows
           );
 
-          req.io.emit("login", { reload: true });
+          req.io.emit("login", { id: row[0].id, reload: true });
           return res.status(200).send({
             response: {
               token: token,
@@ -220,6 +220,11 @@ module.exports = {
       }
     });
   },
+  sessionStatus: (req, res) => {
+    return res.status(200).send({
+      response: "Success",
+    });
+  },
   logout: async (req, res) => {
     const { id } = req.body;
 
@@ -229,6 +234,7 @@ module.exports = {
       await User.deleteSession(req.con, id).then((rows) => rows);
 
       req.io.emit("login", { reload: true });
+
       return res.status(200).send({
         response: "Cierre de sesión exitoso",
       });

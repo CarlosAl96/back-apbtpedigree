@@ -81,6 +81,19 @@ module.exports = {
         });
       }
 
+      if (result[0].price == 0) {
+        return res.status(200).send({
+          response: {
+            isPaid: true,
+            isAdmin: false,
+            isFree: true,
+            isStreamActive: true,
+            isLive: result[0].is_live,
+            stream: result[0],
+          },
+        });
+      }
+
       const verify = await Payment.verify(req.con, result[0].id, user.id).then(
         (rows) => rows[0].has_paid
       );

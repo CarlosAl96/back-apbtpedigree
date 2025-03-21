@@ -14,7 +14,7 @@ module.exports = {
 
     const offset = page * size;
 
-    const condition = `LIMIT ${size} OFFSET ${offset}`;
+    const condition = `ORDER BY num_order ASC LIMIT ${size} OFFSET ${offset}`;
 
     const categoriesCount = await Category.getCount(req.con).then(
       (rows) => rows[0].count
@@ -56,7 +56,15 @@ module.exports = {
       });
     });
   },
-  store: (req, res) => {
+  store: async (req, res) => {
+    const last = await Category.getLast(req.con).then(
+      (rows) => rows[0].num_order
+    );
+
+    console.log(last);
+
+    req.body.num_order = last + 1;
+
     Category.store(req.con, req.body, (err, result) => {
       if (err) {
         res.status(500).send({
@@ -191,6 +199,38 @@ module.exports = {
       }
 
       for (let i = 0; i < result.length; i++) {}
+    });
+  },
+
+  orderChange: (req, res) => {
+    const { id } = req.params;
+    const { option } = req.body;
+
+    Category.getById(req.con, id, async (error, result) => {
+      if (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo la categoria " + error,
+        });
+      }
+
+      let newOrder = 0;
+
+      if (option == "up") {
+        newOrder = result[0].num_order > 0 ? result[0].num_order - 1 : 0;
+      } else {
+        newOrder = result[0].num_order + 1;
+      }
+
+      const adjacent = await Category.getByOrder(req.con, newOrder).then(
+        (rows) => rows[0].id
+      );
+
+      await Category.setOrder(req.con, newOrder, result[0].id);
+      await Category.setOrder(req.con, result[0].num_order, adjacent);
+
+      return res.status(200).send({
+        response: "Success",
+      });
     });
   },
 };

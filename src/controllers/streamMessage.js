@@ -4,9 +4,7 @@ const { decodeToken } = require("../utils/jwt");
 
 module.exports = {
   get: (req, res) => {
-    const { id } = req.params;
-
-    StreamMessage.getByIdStream(req.con, id, (error, results) => {
+    StreamMessage.getByIdStream(req.con, (error, results) => {
       if (error) {
         return res.status(500).send({
           response: "Ha ocurrido un error trayendo el chat: " + error,
@@ -27,7 +25,6 @@ module.exports = {
       }
       req.io.emit("streamMessage", {
         id: result.insertId,
-        stream_id: req.body.stream_id,
         user_id: req.body.user_id,
         username: req.body.username,
         message: req.body.message,
