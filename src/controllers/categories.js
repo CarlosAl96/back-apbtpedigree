@@ -67,7 +67,7 @@ module.exports = {
 
     Category.store(req.con, req.body, (err, result) => {
       if (err) {
-        res.status(500).send({
+        return res.status(500).send({
           response: "Ha ocurrido un error creando la categoria" + error,
         });
       }
@@ -75,7 +75,7 @@ module.exports = {
         id_topic: 0,
         id_category: 0,
       });
-      res.status(200).send({
+      return res.status(200).send({
         response: "Success",
       });
     });

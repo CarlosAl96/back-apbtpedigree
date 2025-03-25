@@ -144,7 +144,7 @@ module.exports = {
       params.append("grant_type", "client_credentials");
 
       const responseAuth = await axios.post(
-        `${process.env.PAYPAL_SANDBOX_API}/v1/oauth2/token`,
+        `${process.env.PAYPAL_PROD_API}/v1/oauth2/token`,
         params,
         {
           headers: {
@@ -158,7 +158,7 @@ module.exports = {
       );
 
       const response = await axios.post(
-        `${process.env.PAYPAL_SANDBOX_API}/v2/checkout/orders`,
+        `${process.env.PAYPAL_PROD_API}/v2/checkout/orders`,
         order,
         {
           headers: {
@@ -183,7 +183,7 @@ module.exports = {
 
     try {
       const response = await axios.get(
-        `${process.env.PAYPAL_SANDBOX_API}/v2/checkout/orders/${order}`,
+        `${process.env.PAYPAL_PROD_API}/v2/checkout/orders/${order}`,
         {
           auth: {
             username: process.env.PAYPAL_CLIENT_ID,
