@@ -31,6 +31,23 @@ module.exports = {
       return res.status(200).send({ response: results });
     });
   },
+  getChatsCount: (req, res) => {
+    const { authorization } = req.headers;
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    chat.getChatsCountUnviewed(req.con, user.id, async (err, results) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo los chats: " + err,
+        });
+      }
+
+      return res
+        .status(200)
+        .send({ response: results.length ? results.length : 0 });
+    });
+  },
   delete: async (req, res) => {
     const { id } = req.params;
     const { authorization } = req.headers;
@@ -149,6 +166,11 @@ module.exports = {
             response: "Ha ocurrido un error actualizando el chat: " + err,
           });
         }
+
+        req.io.emit("getChats", {
+          id_one: chatResult.id_user_one,
+          id_two: chatResult.id_user_rwo,
+        });
 
         return res.status(200).send({ response: "success" });
       }

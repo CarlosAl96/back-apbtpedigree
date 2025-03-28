@@ -5,6 +5,12 @@ module.exports = {
       callback
     );
   },
+  getChatsCountUnviewed: (con, id_user, callback) => {
+    con.query(
+      `SELECT chat.*, u1.username AS username_one, u1.picture AS img_one, u2.username AS username_two, u2.picture AS img_two FROM chat INNER JOIN users u1 ON chat.id_user_one = u1.id INNER JOIN users u2 ON chat.id_user_two = u2.id where (id_user_one=${id_user} AND viewed_one=0) OR (id_user_two=${id_user} AND viewed_two=0)`,
+      callback
+    );
+  },
   getById: (con, id, callback) => {
     con.query(`SELECT * from chat where id =${id}`, callback);
   },
