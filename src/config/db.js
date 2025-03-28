@@ -57,4 +57,4 @@ setInterval(() => {
   });
 }, 60000); // Cada 60 segundos
 
-module.exports = dbConnect.promise(); // Exportamos el pool con promesas
+module.exports = dbConnect; // Exportamos el pool con promesas
