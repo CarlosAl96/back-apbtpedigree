@@ -154,9 +154,9 @@ module.exports = {
     const { token } = req.params;
     const origin = req.headers.origin || req.headers.referer || "";
 
-    // if (origin != process.env.FRONTEND_URL) {
-    //   return res.status(403).send({ response: "No estás autorizado" });
-    // }
+    if (origin != process.env.FRONTEND_URL) {
+      return res.status(403).send({ response: "No estás autorizado" });
+    }
 
     const session = await User.getSession(req.con, token);
 
