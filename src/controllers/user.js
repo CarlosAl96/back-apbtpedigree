@@ -179,13 +179,16 @@ module.exports = {
             row[0].password
           );
         } else if (isPBKDF2Hash(row[0].password)) {
-          const [, , iterations, salt, storedHash] = row[0].password.split("$");
-          passwordValid = await validatePBKDF2Password(
-            password,
-            storedHash,
-            salt,
-            parseInt(iterations, 10)
-          );
+          try {
+            const [, , iterations, salt, storedHash] =
+              row[0].password.split("$");
+            passwordValid = await validatePBKDF2Password(
+              password,
+              storedHash,
+              salt,
+              parseInt(iterations, 10)
+            );
+          } catch (error) {}
         }
         if (passwordValid) {
           delete row[0].password;

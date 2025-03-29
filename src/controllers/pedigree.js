@@ -22,31 +22,31 @@ module.exports = {
     const params = [];
 
     if (registeredName) {
-      condition = ` WHERE name LIKE ?`;
+      condition = ` WHERE pedigree.name LIKE ?`;
       params.push(`%${registeredName}%`);
     }
     if (dogId) {
-      condition = ` WHERE id = ?`;
+      condition = ` WHERE pedigree.id = ?`;
       params.push(dogId);
     }
     if (registrationNumber) {
-      condition = ` WHERE registrationNumber LIKE ?`;
+      condition = ` WHERE pedigree.registrationNumber LIKE ?`;
       params.push(`%${registrationNumber}%`);
     }
     if (callname) {
-      condition = ` WHERE callname LIKE ?`;
+      condition = ` WHERE pedigree.callname LIKE ?`;
       params.push(`%${callname}%`);
     }
     if (breeder) {
-      condition = ` WHERE breeder LIKE ?`;
+      condition = ` WHERE pedigree.breeder LIKE ?`;
       params.push(`%${breeder}%`);
     }
     if (owner) {
-      condition = ` WHERE owner LIKE ?`;
+      condition = ` WHERE pedigree.owner LIKE ?`;
       params.push(`%${owner}%`);
     }
     if (userId) {
-      condition = ` WHERE user_id = ?`;
+      condition = ` WHERE pedigree.user_id = ?`;
       params.push(userId);
     }
 
@@ -59,7 +59,7 @@ module.exports = {
         condition
       ).then((rows) => rows[0].count);
 
-      condition += ` ORDER BY ${orderBy} LIMIT ${size} OFFSET ${offset}`;
+      condition += ` ORDER BY pedigree.${orderBy} LIMIT ${size} OFFSET ${offset}`;
 
       Pedigree.get(req.con, params, condition, (error, rows) => {
         if (error) {
@@ -177,7 +177,6 @@ module.exports = {
     }
 
     console.log(req.body);
-    
 
     Pedigree.savePedigree(req.con, req.body, (error, rows) => {
       if (error) {

@@ -1,11 +1,24 @@
 module.exports = {
   get: (con, params, condition, callback) => {
-    con.query(`SELECT * FROM  dogsBackUp2 ${condition}`, params, callback);
+    con.query(
+      `SELECT pedigree.*, 
+        father.name AS father_name, 
+        father.beforeNameTitles AS father_beforeNameTitles, 
+        father.afterNameTitles AS father_afterNameTitles, 
+        mother.name AS mother_name, 
+        mother.beforeNameTitles AS mother_beforeNameTitles, 
+        mother.afterNameTitles AS mother_afterNameTitles 
+        FROM dogsBackUp2 AS pedigree 
+        LEFT JOIN dogsBackUp2 AS father ON pedigree.father_id = father.id
+        LEFT JOIN dogsBackUp2 AS mother ON pedigree.mother_id = mother.id ${condition}`,
+      params,
+      callback
+    );
   },
   getCount: (con, params, condition) => {
     return con
       .promise()
-      .query(`SELECT COUNT(*) as count FROM  dogsBackUp2 ${condition}`, params)
+      .query(`SELECT COUNT(*) as count FROM dogsBackUp2 AS pedigree ${condition}`, params)
       .then(([rows]) => rows);
   },
   getById: (con, id) => {
