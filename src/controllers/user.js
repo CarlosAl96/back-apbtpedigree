@@ -624,7 +624,7 @@ module.exports = {
         (rows) => rows[0].count
       );
 
-      const pedigrees = await Pedigree.getCount(req.con, "").then(
+      const pedigrees = await Pedigree.getCount(req.con, [], "").then(
         (rows) => rows[0].count
       );
 
