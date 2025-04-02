@@ -243,7 +243,7 @@ async function updateLastPost(con, id_topic, id_category) {
 
   const lastPostTopic = await postsModel.getLastPostFromTopic(con, id_topic);
 
-  if (lastPostCategory) {
+  if (lastPostCategory.lenght > 0) {
     const objLastPost = {
       date: lastPostCategory[0].created_at,
       user: lastPostCategory[0].id_author,
@@ -252,9 +252,11 @@ async function updateLastPost(con, id_topic, id_category) {
     };
 
     await Category.setLastPost(con, JSON.stringify(objLastPost), id_category);
+  } else {
+    await Category.setLastPost(con, "", id_category);
   }
 
-  if (lastPostTopic) {
+  if (lastPostTopic.lenght > 0) {
     const objLastPost = {
       date: lastPostTopic[0].created_at,
       user: lastPostTopic[0].id_author,
@@ -263,6 +265,8 @@ async function updateLastPost(con, id_topic, id_category) {
     };
 
     await topicsModel.setLastPost(con, JSON.stringify(objLastPost), id_topic);
+  } else {
+    await topicsModel.setLastPost(con, "", id_topic);
   }
 }
 

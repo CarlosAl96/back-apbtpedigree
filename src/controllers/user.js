@@ -153,75 +153,82 @@ module.exports = {
   login: (req, res) => {
     const { username, password } = req.body;
 
-    User.getByEmailOrUsername(req.con, username, async (error, row) => {
-      if (error) {
-        return res
-          .status(500)
-          .send({ response: "Ha ocurrido un error trayendo el usuario" });
-      } else {
-        if (row.length == 0) {
-          return res.status(500).send({
-            response: "No se encontro ningun usuario con estas credenciales",
-          });
-        }
-
-        if (!row[0].is_enabled) {
-          return res.status(403).send({
-            response: "Tu cuenta ha sido deshabilitada",
-          });
-        }
-
-        let passwordValid = false;
-
-        if (isBcryptHash(row[0].password)) {
-          passwordValid = await validateBcryptPassword(
-            password,
-            row[0].password
-          );
-        } else if (isPBKDF2Hash(row[0].password)) {
-          try {
-            const [, , iterations, salt, storedHash] =
-              row[0].password.split("$");
-            passwordValid = await validatePBKDF2Password(
-              password,
-              storedHash,
-              salt,
-              parseInt(iterations, 10)
-            );
-          } catch (error) {}
-        }
-        if (passwordValid) {
-          delete row[0].password;
-          const userData = row[0];
-
-          const ip = req.ip || req.ips;
-          const token = createAccessToken(userData, false);
-
-          await User.updateLoginData(req.con, row[0].id, ip).then(
-            (rows) => rows
-          );
-
-          await User.deleteSession(req.con, row[0].id).then((rows) => rows);
-
-          await User.saveSession(req.con, row[0].id, token).then(
-            (rows) => rows
-          );
-
-          req.io.emit("login", { id: row[0].id, reload: true });
-          return res.status(200).send({
-            response: {
-              token: token,
-              refreshToken: createRefreshToken(userData),
-              user: userData,
-            },
-          });
-        } else {
+    try {
+      User.getByEmailOrUsername(req.con, username, async (error, row) => {
+        if (error) {
           return res
             .status(500)
-            .send({ response: "La contraseña no es correcta" });
+            .send({ response: "Ha ocurrido un error trayendo el usuario" });
+        } else {
+          if (row.length == 0) {
+            return res.status(500).send({
+              response: "No se encontro ningun usuario con estas credenciales",
+            });
+          }
+
+          if (!row[0].is_enabled) {
+            return res.status(403).send({
+              response: "Tu cuenta ha sido deshabilitada",
+            });
+          }
+
+          let passwordValid = false;
+
+          if (isBcryptHash(row[0].password)) {
+            passwordValid = await validateBcryptPassword(
+              password,
+              row[0].password
+            );
+          } else if (isPBKDF2Hash(row[0].password)) {
+            try {
+              const [, , iterations, salt, storedHash] =
+                row[0].password.split("$");
+              passwordValid = await validatePBKDF2Password(
+                password,
+                storedHash,
+                salt,
+                parseInt(iterations, 10)
+              );
+            } catch (error) {}
+          }
+          if (passwordValid) {
+            delete row[0].password;
+            const userData = row[0];
+
+            const ip = req.ip || req.ips;
+            const token = createAccessToken(userData, false);
+
+            await User.updateLoginData(req.con, row[0].id, ip).then(
+              (rows) => rows
+            );
+
+            await User.deleteSession(req.con, row[0].id).then((rows) => rows);
+
+            await User.saveSession(req.con, row[0].id, token).then(
+              (rows) => rows
+            );
+
+            req.io.emit("login", { id: row[0].id, reload: true });
+            return res.status(200).send({
+              response: {
+                token: token,
+                refreshToken: createRefreshToken(userData),
+                user: userData,
+              },
+            });
+          } else {
+            return res
+              .status(500)
+              .send({ response: "La contraseña no es correcta" });
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response:
+          "Ha ocurrido un error registrando al usuario: " + error.message,
+      });
+    }
   },
   sessionStatus: (req, res) => {
     return res.status(200).send({
@@ -449,40 +456,46 @@ module.exports = {
   forgotPassword: (req, res) => {
     const { username } = req.body;
 
-    User.getByEmailOrUsername(req.con, username, async (error, row) => {
-      if (error) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error trayendo el usuario",
-        });
-      } else {
-        if (row.length == 0) {
-          return res.status(404).send({
-            response: "No se encontro ningun usuario con este email",
+    try {
+      User.getByEmailOrUsername(req.con, username, async (error, row) => {
+        if (error) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error trayendo el usuario",
           });
-        }
-
-        const token = createAccessToken(row[0], true);
-
-        await User.deleteTokenByUserIdResetPassword(req.con, row[0].id);
-
-        User.saveTokenResetPassword(
-          req.con,
-          { user_id: row[0].id, token },
-          async (err, result) => {
-            if (err) {
-              return res.status(500).send({
-                response: "Ha ocurrido un error guardando el token: " + err,
-              });
-            } else {
-              await sendResetEmail(row[0].email, token);
-              return res.status(200).send({
-                response: "Email sended",
-              });
-            }
+        } else {
+          if (row.length == 0) {
+            return res.status(404).send({
+              response: "No se encontro ningun usuario con este email",
+            });
           }
-        );
-      }
-    });
+
+          const token = createAccessToken(row[0], true);
+
+          await User.deleteTokenByUserIdResetPassword(req.con, row[0].id);
+
+          User.saveTokenResetPassword(
+            req.con,
+            { user_id: row[0].id, token },
+            async (err, result) => {
+              if (err) {
+                return res.status(500).send({
+                  response: "Ha ocurrido un error guardando el token: " + err,
+                });
+              } else {
+                await sendResetEmail(row[0].email, token);
+                return res.status(200).send({
+                  response: "Email sended",
+                });
+              }
+            }
+          );
+        }
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error trayendo el usuario",
+      });
+    }
   },
 
   updatePassword: (req, res) => {
@@ -499,62 +512,72 @@ module.exports = {
       });
     }
 
-    User.getById(req.con, id, async (error, row) => {
-      if (error) {
-        return res
-          .status(500)
-          .send({ response: "Ha ocurrido un error trayendo el usuario" });
-      } else {
-        if (row.length == 0) {
-          return res.status(404).send({
-            response: "No se encontro ningun usuario con estas credenciales",
-          });
-        }
-
-        let passwordValid = false;
-
-        if (isBcryptHash(row[0].password)) {
-          passwordValid = await validateBcryptPassword(
-            req.body.oldPassword,
-            row[0].password
-          );
-        } else if (isPBKDF2Hash(row[0].password)) {
-          const [, , iterations, salt, storedHash] = row[0].password.split("$");
-          passwordValid = await validatePBKDF2Password(
-            req.body.oldPassword,
-            storedHash,
-            salt,
-            parseInt(iterations, 10)
-          );
-        }
-        if (passwordValid) {
-          const genSalt = await bcrypt.genSalt(10);
-          const newPassword = await bcrypt.hash(req.body.newPassword, genSalt);
-
-          User.updateUser(
-            req.con,
-            `password = '${newPassword}'`,
-            row[0].id,
-            async (err, result) => {
-              if (err) {
-                return res.status(500).send({
-                  response: "Ha ocurrido un error actualizando la contraseña",
-                });
-              } else {
-                await User.deleteTokenResetPassword(req.con, token);
-                return res.status(200).send({
-                  response: "Contraseña actualizada",
-                });
-              }
-            }
-          );
-        } else {
+    try {
+      User.getById(req.con, id, async (error, row) => {
+        if (error) {
           return res
             .status(500)
-            .send({ response: "La contraseña no es correcta" });
+            .send({ response: "Ha ocurrido un error trayendo el usuario" });
+        } else {
+          if (row.length == 0) {
+            return res.status(404).send({
+              response: "No se encontro ningun usuario con estas credenciales",
+            });
+          }
+
+          let passwordValid = false;
+
+          if (isBcryptHash(row[0].password)) {
+            passwordValid = await validateBcryptPassword(
+              req.body.oldPassword,
+              row[0].password
+            );
+          } else if (isPBKDF2Hash(row[0].password)) {
+            const [, , iterations, salt, storedHash] =
+              row[0].password.split("$");
+            passwordValid = await validatePBKDF2Password(
+              req.body.oldPassword,
+              storedHash,
+              salt,
+              parseInt(iterations, 10)
+            );
+          }
+          if (passwordValid) {
+            const genSalt = await bcrypt.genSalt(10);
+            const newPassword = await bcrypt.hash(
+              req.body.newPassword,
+              genSalt
+            );
+
+            User.updateUser(
+              req.con,
+              `password = '${newPassword}'`,
+              row[0].id,
+              async (err, result) => {
+                if (err) {
+                  return res.status(500).send({
+                    response: "Ha ocurrido un error actualizando la contraseña",
+                  });
+                } else {
+                  await User.deleteTokenResetPassword(req.con, token);
+                  return res.status(200).send({
+                    response: "Contraseña actualizada",
+                  });
+                }
+              }
+            );
+          } else {
+            return res
+              .status(500)
+              .send({ response: "La contraseña no es correcta" });
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error actualizando la contraseña",
+      });
+    }
   },
 
   changePassword: (req, res) => {

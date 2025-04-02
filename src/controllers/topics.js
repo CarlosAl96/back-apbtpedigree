@@ -61,26 +61,32 @@ module.exports = {
 
     condition += ` ORDER BY sticky DESC, is_announcement DESC, updated_at DESC LIMIT ${size} OFFSET ${offset}`;
 
-    topicsModel.get(req.con, condition, async (err, result) => {
-      if (err) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error listando los topics" + err,
+    try {
+      topicsModel.get(req.con, condition, async (err, result) => {
+        if (err) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error listando los topics" + err,
+          });
+        }
+
+        for (let i = 0; i < result.length; i++) {
+          result[i].new_posts = await getIsUnviewed(
+            req.con,
+            user.id,
+            result[i].id,
+            result[i].replies + 1
+          );
+        }
+
+        return res.status(200).send({
+          response: { data: result, totalRows: topicsCount },
         });
-      }
-
-      for (let i = 0; i < result.length; i++) {
-        result[i].new_posts = await getIsUnviewed(
-          req.con,
-          user.id,
-          result[i].id,
-          result[i].replies + 1
-        );
-      }
-
-      return res.status(200).send({
-        response: { data: result, totalRows: topicsCount },
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error listando los topics" + error,
+      });
+    }
   },
   store: (req, res) => {
     const { authorization } = req.headers;
@@ -94,49 +100,55 @@ module.exports = {
       });
     }
 
-    topicsModel.store(req.con, req.body, async (err, result) => {
-      if (err) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error creando el topics" + err,
-        });
-      }
-
-      const post = {
-        subject: req.body.name,
-        message: req.body.message,
-        id_post_reply: 0,
-        id_author: req.body.id_author,
-        id_topic: result.insertId,
-        first: true,
-      };
-
-      postsModel.store(req.con, post, async (error, row) => {
+    try {
+      topicsModel.store(req.con, req.body, async (err, result) => {
         if (err) {
           return res.status(500).send({
-            response: "Ha ocurrido un error creando el post" + error,
+            response: "Ha ocurrido un error creando el topics" + err,
           });
         }
 
-        await updatePostsInfo(req.con, req.body.id_categories);
-        await updateLastPost(req.con, req.body.id_categories);
-        await updatePostsUsers(req.con, req.body.id_author);
-        await updateViews(
-          req.con,
-          user.id,
-          result.insertId,
-          req.body.id_categories
-        );
-
-        req.io.emit("forum", {
+        const post = {
+          subject: req.body.name,
+          message: req.body.message,
+          id_post_reply: 0,
+          id_author: req.body.id_author,
           id_topic: result.insertId,
-          id_category: req.body.id_categories,
-        });
+          first: true,
+        };
 
-        return res.status(200).send({
-          response: "succes",
+        postsModel.store(req.con, post, async (error, row) => {
+          if (err) {
+            return res.status(500).send({
+              response: "Ha ocurrido un error creando el post" + error,
+            });
+          }
+
+          await updatePostsInfo(req.con, req.body.id_categories);
+          await updateLastPost(req.con, req.body.id_categories);
+          await updatePostsUsers(req.con, req.body.id_author);
+          await updateViews(
+            req.con,
+            user.id,
+            result.insertId,
+            req.body.id_categories
+          );
+
+          req.io.emit("forum", {
+            id_topic: result.insertId,
+            id_category: req.body.id_categories,
+          });
+
+          return res.status(200).send({
+            response: "succes",
+          });
         });
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error listando los topics" + error,
+      });
+    }
   },
   getById: (req, res) => {
     const { id } = req.params;
@@ -147,22 +159,28 @@ module.exports = {
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
 
-    topicsModel.getById(req.con, id, async (err, result) => {
-      if (err) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error trayendo el topics" + err,
+    try {
+      topicsModel.getById(req.con, id, async (err, result) => {
+        if (err) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error trayendo el topics" + err,
+          });
+        }
+        await topicsModel.addViews(req.con, id);
+
+        if (addview) {
+          await updateViews(req.con, user.id, id, result[0].id_categories);
+        }
+
+        return res.status(200).send({
+          response: result[0],
         });
-      }
-      await topicsModel.addViews(req.con, id);
-
-      if (addview) {
-        await updateViews(req.con, user.id, id, result[0].id_categories);
-      }
-
-      return res.status(200).send({
-        response: result[0],
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error trayendo el topics" + error,
+      });
+    }
   },
   delete: (req, res) => {
     const { id } = req.params;
@@ -178,52 +196,64 @@ module.exports = {
       });
     }
 
-    topicsModel.getById(req.con, id, (err, result) => {
-      if (err) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error trayendo el topics" + err,
-        });
-      }
-      const moderators = JSON.parse(result[0].moderators);
-      const isModerator = moderators.some((rol) => rol.includes(user.username));
+    try {
+      topicsModel.getById(req.con, id, (err, result) => {
+        if (err) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error trayendo el topics" + err,
+          });
+        }
+        const moderators = JSON.parse(result[0].moderators);
+        const isModerator = moderators.some((rol) =>
+          rol.includes(user.username)
+        );
 
-      if (result[0].id_author == user.id || user.is_superuser || isModerator) {
-        topicsModel.delete(req.con, id, (err, rowDelete) => {
-          if (err) {
-            return res.status(500).send({
-              response: "Ha ocurrido un error eliminando el topics" + err,
-            });
-          }
-
-          postsModel.deletePostFromTopic(
-            req.con,
-            result[0].id,
-            async (err, row) => {
-              if (err) {
-                return res.status(500).send({
-                  response: "Ha ocurrido un error eliminando el topics" + err,
-                });
-              }
-
-              await updatePostsInfo(req.con, result[0].id_categories);
-              await updateLastPost(req.con, result[0].id_categories);
-              await updatePostsUsers(req.con, result[0].id_author);
-              req.io.emit("forum", {
-                id_topic: result[0].id_topic,
-                id_category: result[0].id_categories,
-              });
-              return res.status(200).send({
-                response: "succes",
+        if (
+          result[0].id_author == user.id ||
+          user.is_superuser ||
+          isModerator
+        ) {
+          topicsModel.delete(req.con, id, (err, rowDelete) => {
+            if (err) {
+              return res.status(500).send({
+                response: "Ha ocurrido un error eliminando el topics" + err,
               });
             }
-          );
-        });
-      } else {
-        return res
-          .status(403)
-          .send({ response: "No tienes permiso para eliminar este topic" });
-      }
-    });
+
+            postsModel.deletePostFromTopic(
+              req.con,
+              result[0].id,
+              async (err, row) => {
+                if (err) {
+                  return res.status(500).send({
+                    response: "Ha ocurrido un error eliminando el topics" + err,
+                  });
+                }
+
+                await updatePostsInfo(req.con, result[0].id_categories);
+                await updateLastPost(req.con, result[0].id_categories);
+                await updatePostsUsers(req.con, result[0].id_author);
+                req.io.emit("forum", {
+                  id_topic: result[0].id_topic,
+                  id_category: result[0].id_categories,
+                });
+                return res.status(200).send({
+                  response: "succes",
+                });
+              }
+            );
+          });
+        } else {
+          return res
+            .status(403)
+            .send({ response: "No tienes permiso para eliminar este topic" });
+        }
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error eliminando el topics" + error,
+      });
+    }
   },
   markAllAsViewed: (req, res) => {
     const { id } = req.params;
@@ -233,21 +263,27 @@ module.exports = {
 
     let condition = `WHERE id_categories=${id}`;
 
-    topicsModel.get(req.con, condition, async (err, result) => {
-      if (err) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error listando los topics" + err,
+    try {
+      topicsModel.get(req.con, condition, async (err, result) => {
+        if (err) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error listando los topics" + err,
+          });
+        }
+
+        for (let i = 0; i < result.length; i++) {
+          await updateViews(req.con, user.id, result[i].id, id);
+        }
+
+        return res.status(200).send({
+          response: "success",
         });
-      }
-
-      for (let i = 0; i < result.length; i++) {
-        await updateViews(req.con, user.id, result[i].id, id);
-      }
-
-      return res.status(200).send({
-        response: "success",
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error listando los topics" + error,
+      });
+    }
   },
   sticky: (req, res) => {
     const { id } = req.params;

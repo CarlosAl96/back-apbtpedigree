@@ -6,40 +6,47 @@ const { decodeToken } = require("../utils/jwt");
 
 module.exports = {
   get: async (req, res) => {
-    const { page, size } = req.query;
-    const { authorization } = req.headers;
+    try {
+      const { page, size } = req.query;
+      const { authorization } = req.headers;
 
-    const token = authorization.replace("Bearer ", "");
-    const user = decodeToken(token).user;
+      const token = authorization.replace("Bearer ", "");
+      const user = decodeToken(token).user;
 
-    const offset = page * size;
+      const offset = page * size;
 
-    const condition = `ORDER BY num_order ASC LIMIT ${size} OFFSET ${offset}`;
+      const condition = `ORDER BY num_order ASC LIMIT ${size} OFFSET ${offset}`;
 
-    const categoriesCount = await Category.getCount(req.con).then(
-      (rows) => rows[0].count
-    );
+      const categoriesCount = await Category.getCount(req.con).then(
+        (rows) => rows[0].count
+      );
 
-    Category.get(req.con, condition, async (err, result) => {
-      if (err) {
-        return res.status(500).send({
-          response:
-            "Ha ocurrido un error listando las categorias Error: " + err,
+      Category.get(req.con, condition, async (err, result) => {
+        if (err) {
+          return res.status(500).send({
+            response:
+              "Ha ocurrido un error listando las categorias Error: " + err,
+          });
+        }
+
+        for (let i = 0; i < result.length; i++) {
+          result[i].new_posts = await getIsUnviewed(
+            req.con,
+            user.id,
+            result[i].id,
+            result[i].posts
+          );
+        }
+        return res.status(200).send({
+          response: { data: result, totalRows: categoriesCount },
         });
-      }
-
-      for (let i = 0; i < result.length; i++) {
-        result[i].new_posts = await getIsUnviewed(
-          req.con,
-          user.id,
-          result[i].id,
-          result[i].posts
-        );
-      }
-      return res.status(200).send({
-        response: { data: result, totalRows: categoriesCount },
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response:
+          "Ha ocurrido un error listando las categorias Error: " + error,
+      });
+    }
   },
   getById: async (req, res) => {
     const { id } = req.params;
@@ -186,52 +193,42 @@ module.exports = {
     }
   },
 
-  haveNewPosts: (req, res) => {
-    const { id } = req.params;
-
-    let condition = `WHERE id_categories=${id}`;
-
-    topicsModel.get(req.con, condition, (err, result) => {
-      if (err) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error listando los topics" + err,
-        });
-      }
-
-      for (let i = 0; i < result.length; i++) {}
-    });
-  },
-
   orderChange: (req, res) => {
     const { id } = req.params;
     const { option } = req.body;
 
-    Category.getById(req.con, id, async (error, result) => {
-      if (error) {
-        return res.status(500).send({
-          response: "Ha ocurrido un error trayendo la categoria " + error,
+    try {
+      Category.getById(req.con, id, async (error, result) => {
+        if (error) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error trayendo la categoria " + error,
+          });
+        }
+
+        let newOrder = 0;
+
+        if (option == "up") {
+          newOrder = result[0].num_order > 0 ? result[0].num_order - 1 : 0;
+        } else {
+          newOrder = result[0].num_order + 1;
+        }
+
+        const adjacent = await Category.getByOrder(req.con, newOrder).then(
+          (rows) => rows[0].id
+        );
+
+        await Category.setOrder(req.con, newOrder, result[0].id);
+        await Category.setOrder(req.con, result[0].num_order, adjacent);
+
+        return res.status(200).send({
+          response: "Success",
         });
-      }
-
-      let newOrder = 0;
-
-      if (option == "up") {
-        newOrder = result[0].num_order > 0 ? result[0].num_order - 1 : 0;
-      } else {
-        newOrder = result[0].num_order + 1;
-      }
-
-      const adjacent = await Category.getByOrder(req.con, newOrder).then(
-        (rows) => rows[0].id
-      );
-
-      await Category.setOrder(req.con, newOrder, result[0].id);
-      await Category.setOrder(req.con, result[0].num_order, adjacent);
-
-      return res.status(200).send({
-        response: "Success",
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error trayendo la categoria " + error,
+      });
+    }
   },
 };
 
