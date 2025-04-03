@@ -1,7 +1,8 @@
 module.exports = {
   get: (con, params, condition, callback) => {
     con.query(
-      `SELECT pedigree.*, 
+      ` SELECT pedigree.*, 
+        user.username AS entered_by_name,
         father.name AS father_name, 
         father.beforeNameTitles AS father_beforeNameTitles, 
         father.afterNameTitles AS father_afterNameTitles, 
@@ -9,6 +10,7 @@ module.exports = {
         mother.beforeNameTitles AS mother_beforeNameTitles, 
         mother.afterNameTitles AS mother_afterNameTitles 
         FROM dogsBackUp2 AS pedigree 
+        LEFT JOIN users AS user ON pedigree.entered_by = user.id
         LEFT JOIN dogsBackUp2 AS father ON pedigree.father_id = father.id
         LEFT JOIN dogsBackUp2 AS mother ON pedigree.mother_id = mother.id ${condition}`,
       params,
@@ -18,13 +20,18 @@ module.exports = {
   getCount: (con, params, condition) => {
     return con
       .promise()
-      .query(`SELECT COUNT(*) as count FROM dogsBackUp2 AS pedigree ${condition}`, params)
+      .query(
+        `SELECT COUNT(*) as count FROM dogsBackUp2 AS pedigree ${condition}`,
+        params
+      )
       .then(([rows]) => rows);
   },
   getById: (con, id) => {
     return con
       .promise()
-      .query(`SELECT * FROM  dogsBackUp2 WHERE id=${id}`)
+      .query(
+        `SELECT dogsBackUp2.*, user.username AS entered_by_name FROM dogsBackUp2 INNER JOIN users AS user ON dogsBackUp2.entered_by = user.id WHERE dogsBackUp2.id=${id}`
+      )
       .then(([rows]) => rows);
   },
 
@@ -61,12 +68,12 @@ module.exports = {
     try {
       const query = `
         UPDATE  dogsBackUp2 
-        SET user_id = ?, owner = ?, descriptionOwner = ? 
+        SET user_id = ?, entered_by = ?, owner = ?, descriptionOwner = ? 
         WHERE id = ?`;
 
       const results = con
         .promise()
-        .query(query, [idNewOwner, owner, description, id]);
+        .query(query, [idNewOwner, idNewOwner, owner, description, id]);
 
       if (results.affectedRows === 0) {
         throw new Error("No se encontró un registro para actualizar");
@@ -133,6 +140,7 @@ module.exports = {
           afterNameTitles,
           description,
           owner,
+          entered_by,
           breeder,
           callname,
           sex,
@@ -152,7 +160,7 @@ module.exports = {
           private,
           created_at
         ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
         )`,
       [
         data.name,
@@ -160,6 +168,7 @@ module.exports = {
         data.afterNameTitles,
         data.description,
         data.owner,
+        data.user_id,
         data.breeder,
         data.callname,
         data.sex,

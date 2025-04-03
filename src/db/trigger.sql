@@ -37,7 +37,7 @@ BEGIN
     -- Registro de cambios en la columna 'owner'
     IF OLD.owner <> NEW.owner THEN
         INSERT INTO dogs_log (user_id, dog_id, description, date)
-        VALUES (NEW.user_id, NEW.id, CONCAT('Changed Owner from ', OLD.owner, ' to ', NEW.owner), NOW());
+        VALUES (NEW.user_id, NEW.id, CONCAT('Changed Owner from ', OLD.user_id, ' to ', NEW.user_id), NOW());
     END IF;
 
     -- Registro de cambios en la columna 'breeder'
