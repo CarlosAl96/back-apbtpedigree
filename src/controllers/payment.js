@@ -151,8 +151,8 @@ module.exports = {
             "Content-Type": "application/x-www-form-urlencoded",
           },
           auth: {
-            username: process.env.PAYPAL_CLIENT_ID,
-            password: process.env.PAYPAL_SECRET,
+            username: process.env.PAYPAL_CLIENT_ID_PROD,
+            password: process.env.PAYPAL_SECRET_PROD,
           },
         }
       );
@@ -186,8 +186,8 @@ module.exports = {
         `${process.env.PAYPAL_PROD_API}/v2/checkout/orders/${order}`,
         {
           auth: {
-            username: process.env.PAYPAL_CLIENT_ID,
-            password: process.env.PAYPAL_SECRET,
+            username: process.env.PAYPAL_CLIENT_ID_PROD,
+            password: process.env.PAYPAL_SECRET_PROD,
           },
         }
       );
