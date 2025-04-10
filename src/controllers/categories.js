@@ -75,7 +75,7 @@ module.exports = {
     Category.store(req.con, req.body, (err, result) => {
       if (err) {
         return res.status(500).send({
-          response: "Ha ocurrido un error creando la categoria" + error,
+          response: "Ha ocurrido un error creando la categoria" + err,
         });
       }
       req.io.emit("forum", {
@@ -105,27 +105,31 @@ module.exports = {
       });
     });
   },
+
   update: (req, res) => {
     const { id } = req.params;
-    var query = "UPDATE forum_categories SET ";
-    var keys = Object.keys(req.body);
-    var values = Object.values(req.body);
-    for (var i = 0; i < keys.length; i++) {
-      query += `${keys[i]}='${values[i]}',`;
-    }
-    query = query.substring(0, query.length - 1);
+    const updates = req.body;
 
-    query += ` where id =${id}`;
-    Category.update(req.con, query, (err, result) => {
+    const setClause = Object.keys(updates)
+      .map((key) => `${key} = ?`)
+      .join(", ");
+
+    const values = [...Object.values(updates), id];
+
+    const query = `UPDATE forum_categories SET ${setClause} WHERE id = ?`;
+
+    Category.update(req.con, query, values, (err, result) => {
       if (err) {
         return res.status(500).send({
-          response: "Ha ocurrido un error actualizando la categoria" + err,
+          response: "Ha ocurrido un error actualizando la categoria: " + err,
         });
       }
+
       req.io.emit("forum", {
         id_topic: 0,
         id_category: id,
       });
+
       return res.status(200).send({
         response: "Success",
       });

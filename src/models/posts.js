@@ -51,10 +51,21 @@ module.exports = {
       .then(([rows]) => rows);
   },
   store: (con, data, callback) => {
-    con.query(
-      `INSERT INTO posts (subject, message, id_post_reply, id_author, id_topic, first) VALUES('${data.subject}', '${data.message}', ${data.id_post_reply}, ${data.id_author}, ${data.id_topic}, ${data.first})`,
-      callback
-    );
+    const query = `
+      INSERT INTO posts 
+        (subject, message, id_post_reply, id_author, id_topic, first) 
+      VALUES (?, ?, ?, ?, ?, ?)`;
+
+    const values = [
+      data.subject,
+      data.message,
+      data.id_post_reply,
+      data.id_author,
+      data.id_topic,
+      data.first,
+    ];
+
+    con.query(query, values, callback);
   },
   delete: (con, id, callback) => {
     con.query("UPDATE posts SET is_deleted=true where id=" + id, callback);
@@ -65,7 +76,7 @@ module.exports = {
       callback
     );
   },
-  update: (con, query, callback) => {
-    con.query(query, callback);
+  update: (con, query, values, callback) => {
+    con.query(query, values, callback);
   },
 };

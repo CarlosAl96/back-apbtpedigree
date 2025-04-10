@@ -311,6 +311,67 @@ module.exports = {
         .send({ response: "Error al actualizar el usuario" });
     }
   },
+
+  streamChatBan: async (req, res) => {
+    const { id } = req.params;
+    const { value } = req.body;
+    const { authorization } = req.headers;
+
+    const token = authorization.replace("Bearer ", "");
+    const isAdmin = decodeToken(token).user.is_superuser;
+
+    try {
+      if (isAdmin) {
+        User.streamChatBan(req.con, id, value, (error, row) => {
+          if (error) {
+            return res
+              .status(500)
+              .send({ response: "Error al actualizar el usuario" });
+          } else {
+            req.io.emit("streamChatBan", {
+              id: id,
+              value: value,
+            });
+            return res.status(200).send({ response: row });
+          }
+        });
+      } else {
+        return res.status(403).send({
+          response: "No tienes permisos para realizar esta acción",
+        });
+      }
+    } catch (error) {
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el usuario" });
+    }
+  },
+
+  checkChatBan: async (req, res) => {
+    const { id } = req.params;
+    User.getById(req.con, id, (error, row) => {
+      if (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el usuario con id: " + id,
+        });
+      } else {
+        if (row.length == 0) {
+          return res.status(404).send({
+            response: "No se encontro ningun usuario con este username",
+          });
+        }
+
+        let isBanned = false;
+
+        if (row[0].stream_chat_ban) {
+          isBanned = true;
+        }
+
+        return res.status(200).send({ response: isBanned });
+      }
+    });
+  },
+
   disable: async (req, res) => {
     const { id } = req.params;
     const { value } = req.body;

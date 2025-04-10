@@ -41,10 +41,22 @@ module.exports = {
   update: (con, fields, values, callback) => {
     con.query(`UPDATE streams SET ${fields} WHERE id= ?`, values, callback);
   },
+
   store: (con, data, callback) => {
-    con.query(
-      `insert into streams (title, description, price, url, proposed_start_date, proposed_end_date) values ('${data.title}', '${data.description}', ${data.price}, '${data.url}', '${data.proposed_start_date}', '${data.proposed_end_date}')`,
-      callback
-    );
+    const query = `
+      INSERT INTO streams 
+        (title, description, price, url, proposed_start_date, proposed_end_date) 
+      VALUES (?, ?, ?, ?, ?, ?)`;
+
+    const values = [
+      data.title,
+      data.description,
+      data.price,
+      data.url,
+      data.proposed_start_date,
+      data.proposed_end_date,
+    ];
+
+    con.query(query, values, callback);
   },
 };

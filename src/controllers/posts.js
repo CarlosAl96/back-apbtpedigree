@@ -196,7 +196,8 @@ module.exports = {
       if (row[0].id_author == user.id) {
         postsModel.update(
           req.con,
-          `update posts set subject='${subject}', message='${message}' WHERE id=${id}`,
+          `update posts set subject = ?, message = ? WHERE id=${id}`,
+          [subject, message],
           (err, result) => {
             if (err) {
               return res.status(500).send({

@@ -20,23 +20,31 @@ module.exports = {
   forumBan: (con, id, value, callback) => {
     con.query(`UPDATE users SET forum_ban=${value} WHERE id=${id}`, callback);
   },
-  getByEmailOrUsername: (con, username, callback) => {
+  streamChatBan: (con, id, value, callback) => {
     con.query(
-      `SELECT * FROM users where email='${username}' OR username='${username}' LIMIT 1`,
+      `UPDATE users SET stream_chat_ban=${value} WHERE id=${id}`,
       callback
     );
   },
+  getByEmailOrUsername: (con, username, callback) => {
+    con.query(
+      `SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1`,
+      [username, username],
+      callback
+    );
+  },
+
   getByUsername: (con, username, callback) => {
     con.query(
-      `SELECT * FROM users where username='${username}' LIMIT 1`,
+      `SELECT * FROM users WHERE username = ? LIMIT 1`,
+      [username],
       callback
     );
   },
 
   getByEmail: (con, email, callback) => {
-    con.query(`SELECT * FROM users where email='${email}' LIMIT 1`, callback);
+    con.query(`SELECT * FROM users WHERE email = ? LIMIT 1`, [email], callback);
   },
-
   updateLoginData: (con, userId, ip) => {
     return con
       .promise()
@@ -91,17 +99,38 @@ module.exports = {
   },
 
   saveUser: (con, data, callback) => {
-    con.query(
-      `INSERT INTO users (username, password, first_name, last_name, email, phone_number, ip, street, city, state, country, zip_code, picture, is_superuser, stateOnline, adminuser, is_staff, is_active, last_login, date_joined, payment_at)
-	VALUES ('${data.username}','${data.password}','${data.first_name}','${
-        data.last_name
-      }','${data.email}','${data.phone_number}','${data.ip}','${
-        data.street
-      }','${data.city}','${data.state}','${data.country}','${data.zip_code}',${
-        data.picture != "" ? "'" + data.picture + "'" : "NULL"
-      }, ${false}, ${false}, ${false}, ${false}, ${false}, ${null}, CURRENT_TIMESTAMP, ${null})`,
-      callback
-    );
+    const query = `
+      INSERT INTO users (
+        username, password, first_name, last_name, email, 
+        phone_number, ip, street, city, state, country, 
+        zip_code, picture, is_superuser, stateOnline, 
+        adminuser, is_staff, is_active, last_login, 
+        date_joined, payment_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)`;
+
+    const values = [
+      data.username,
+      data.password,
+      data.first_name,
+      data.last_name,
+      data.email,
+      data.phone_number,
+      data.ip,
+      data.street,
+      data.city,
+      data.state,
+      data.country,
+      data.zip_code,
+      data.picture !== "" ? data.picture : null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+    ];
+
+    con.query(query, values, callback);
   },
 
   updateUser: (con, fields, values, callback) => {

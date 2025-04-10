@@ -14,11 +14,22 @@ module.exports = {
       callback
     );
   },
+
   store: (con, data, callback) => {
-    con.query(
-      `INSERT INTO topics (name, message, author, id_author, id_categories) VALUES('${data.name}', '${data.message}', '${data.author}', ${data.id_author}, ${data.id_categories})`,
-      callback
-    );
+    const query = `
+      INSERT INTO topics 
+        (name, message, author, id_author, id_categories) 
+      VALUES (?, ?, ?, ?, ?)`;
+
+    const values = [
+      data.name,
+      data.message,
+      data.author,
+      data.id_author,
+      data.id_categories,
+    ];
+
+    con.query(query, values, callback);
   },
   delete: (con, id, callback) => {
     con.query("UPDATE topics SET is_deleted=true where id=" + id, callback);
@@ -38,8 +49,8 @@ module.exports = {
       callback
     );
   },
-  update: (con, query, callback) => {
-    con.query(query, callback);
+  update: (con, query, values, callback) => {
+    con.query(query, values, callback);
   },
   setLastPost: (con, last_post, id) => {
     return con

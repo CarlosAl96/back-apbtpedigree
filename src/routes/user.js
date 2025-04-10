@@ -41,6 +41,11 @@ app.patch(
   userController.update
 );
 app.patch("/users/:id/forumBan", userAuthenticated, userController.forumBan);
+app.patch(
+  "/users/:id/streamChatBan",
+  userAuthenticated,
+  userController.streamChatBan
+);
 app.patch("/users/:id/disable", userAuthenticated, userController.disable);
 app.get("/usersInfo", userController.usersLoggedInfo);
 app.post("/users/auth", userController.login);
@@ -51,4 +56,5 @@ app.post("/users/passwordReset", userController.forgotPassword);
 app.post("/users/passwordReset/:token", userController.changePassword);
 app.patch("/users/:id/updatePassword", userController.updatePassword);
 app.get("/dashboard", userAuthenticated, userController.dashboardData);
+app.get("/checkChatBan/:id", userAuthenticated, userController.checkChatBan);
 module.exports = app;

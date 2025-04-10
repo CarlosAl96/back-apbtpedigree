@@ -31,17 +31,30 @@ module.exports = {
       .query(`SELECT COUNT(*) as count FROM forum_categories`)
       .then(([rows]) => rows);
   },
+
   store: (con, data, callback) => {
-    con.query(
-      `INSERT INTO forum_categories (name,description,moderators,topics,posts,last_post,num_order) VALUES('${data.name}','${data.description}','${data.moderators}',0,0,'',${data.num_order})`,
-      callback
-    );
+    const query = `
+      INSERT INTO forum_categories 
+        (name, description, moderators, topics, posts, last_post, num_order) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)`;
+
+    const values = [
+      data.name,
+      data.description,
+      data.moderators,
+      0,
+      0,
+      "",
+      data.num_order,
+    ];
+
+    con.query(query, values, callback);
   },
   delete: (con, id, callback) => {
     con.query("DELETE from forum_categories where id=" + id, callback);
   },
-  update: (con, query, callback) => {
-    con.query(query, callback);
+  update: (con, query, values, callback) => {
+    con.query(query, values, callback);
   },
   setTopics: (con, id, topics, callback) => {
     con.query(

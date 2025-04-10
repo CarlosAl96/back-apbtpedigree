@@ -16,6 +16,24 @@ module.exports = {
       });
     });
   },
+  delete: (req, res) => {
+    const { id } = req.params;
+    StreamMessage.delete(req.con, id)
+      .then((result) => {
+        req.io.emit("streamMessageDeleted", {
+          id: id,
+        });
+
+        return res.status(200).send({
+          response: result,
+        });
+      })
+      .catch((error) => {
+        return res.status(500).send({
+          response: "Ha ocurrido un error eliminando el mensaje: " + error,
+        });
+      });
+  },
   store: (req, res) => {
     StreamMessage.store(req.con, req.body, (error, result) => {
       if (error) {
