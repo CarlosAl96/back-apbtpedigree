@@ -486,7 +486,8 @@ module.exports = {
     User.getByUsername(req.con, username, (error, row) => {
       if (error) {
         return res.status(500).send({
-          response: "Ha ocurrido un error trayendo el usuario con id: " + id,
+          response:
+            "Ha ocurrido un error trayendo el usuario con id: " + username,
         });
       } else {
         if (row.length == 0) {
