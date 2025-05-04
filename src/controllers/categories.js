@@ -136,6 +136,40 @@ module.exports = {
     });
   },
 
+  markAllAsViewed: (req, res) => {
+    const { id } = req.params;
+    const { authorization } = req.headers;
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    try {
+      topicsModel.get(req.con, "", async (err, result) => {
+        if (err) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error listando los topics" + err,
+          });
+        }
+
+        for (let i = 0; i < result.length; i++) {
+          await updateViews(
+            req.con,
+            user.id,
+            result[i].id,
+            result[i].id_categories
+          );
+        }
+
+        return res.status(200).send({
+          response: "success",
+        });
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error listando los topics" + error,
+      });
+    }
+  },
+
   lockOrUnlockCategory: (req, res) => {
     const { id } = req.params;
 
@@ -235,6 +269,30 @@ module.exports = {
     }
   },
 };
+
+async function updateViews(con, id_user, id_topic, id_category) {
+  let condition = ` WHERE id_topic=${id_topic} AND is_deleted=false`;
+  const countPosts = await postsModel.getCount(con, condition);
+
+  const viewedTopic = await topicsModel.getViewedTopic(con, id_user, id_topic);
+
+  if (viewedTopic.length) {
+    await topicsModel.updateViewedTopics(
+      con,
+      viewedTopic[0].id,
+      countPosts[0].count
+    );
+  } else {
+    const data = {
+      id_user: id_user,
+      id_topic: id_topic,
+      id_category: id_category,
+      posts_count: countPosts[0].count,
+    };
+
+    await topicsModel.setViewedTopics(con, data);
+  }
+}
 
 async function getIsUnviewed(con, id_user, id_category, posts) {
   const viewedTopics = await topicsModel.getViewedTopics(

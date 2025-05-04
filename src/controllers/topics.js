@@ -166,6 +166,12 @@ module.exports = {
             response: "Ha ocurrido un error trayendo el topics" + err,
           });
         }
+
+        if (!result.length) {
+          return res.status(500).send({
+            response: "No existe el topic",
+          });
+        }
         await topicsModel.addViews(req.con, id);
 
         if (addview) {

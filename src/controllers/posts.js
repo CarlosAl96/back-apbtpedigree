@@ -67,6 +67,37 @@ module.exports = {
       });
     });
   },
+
+  getNextOrPrevious: async (req, res) => {
+    const { option, idCategory, id } = req.query;
+    try {
+      let nextOrPreviousId;
+
+      if (option == "next") {
+        nextOrPreviousId = await postsModel
+          .getIdNextTopic(req.con, id, idCategory)
+          .then((rows) => rows);
+      } else {
+        nextOrPreviousId = await postsModel
+          .getIdPreviousTopic(req.con, id, idCategory)
+          .then((rows) => rows);
+      }
+
+      let _id = 0;
+
+      if (nextOrPreviousId.length > 0) {
+        _id = nextOrPreviousId[0].id;
+      }
+
+      return res.status(200).send({
+        response: _id,
+      });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error trayendo el id. ERROR: " + error,
+      });
+    }
+  },
   getById: (req, res) => {
     const { id } = req.params;
     postsModel.getById(req.con, id, async (err, result) => {

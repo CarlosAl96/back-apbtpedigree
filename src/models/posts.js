@@ -12,6 +12,25 @@ module.exports = {
       callback
     );
   },
+
+  getIdNextTopic: (con, id, idCategory) => {
+    return con
+      .promise()
+      .query(
+        `SELECT id FROM topics WHERE id > ${id} AND id_categories=${idCategory} AND is_deleted=false ORDER BY id ASC LIMIT 1`
+      )
+      .then(([rows]) => rows);
+  },
+
+  getIdPreviousTopic: (con, id, idCategory) => {
+    return con
+      .promise()
+      .query(
+        `SELECT id FROM topics WHERE id < ${id} AND id_categories=${idCategory} AND is_deleted=false ORDER BY id DESC LIMIT 1`
+      )
+      .then(([rows]) => rows);
+  },
+
   getCount: (con, condition) => {
     return con
       .promise()

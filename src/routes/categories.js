@@ -10,6 +10,11 @@ app.post("/categories/store", userAuthenticated, categoryController.store);
 app.delete("/categories/:id", userAuthenticated, categoryController.delete);
 app.patch("/categories/:id", userAuthenticated, categoryController.update);
 app.patch(
+  "/markAllForums",
+  userAuthenticated,
+  categoryController.markAllAsViewed
+);
+app.patch(
   "/categories/:id/order",
   userAuthenticated,
   categoryController.orderChange
