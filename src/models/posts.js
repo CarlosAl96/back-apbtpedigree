@@ -65,7 +65,7 @@ module.exports = {
     return con
       .promise()
       .query(
-        `SELECT posts.*, users.username as username FROM posts INNER JOIN topics ON posts.id_topic = topics.id INNER JOIN users ON posts.id_author = users.id WHERE topics.id_categories = ${id_category} AND posts.is_deleted=false`
+        `SELECT posts.*, users.username as username FROM posts INNER JOIN topics ON posts.id_topic = topics.id INNER JOIN users ON posts.id_author = users.id WHERE topics.id_categories = ${id_category} AND posts.is_deleted=false ORDER BY posts.created_at DESC LIMIT 1`
       )
       .then(([rows]) => rows);
   },

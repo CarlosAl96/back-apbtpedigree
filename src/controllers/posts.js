@@ -275,7 +275,7 @@ async function updateLastPost(con, id_topic, id_category) {
 
   const lastPostTopic = await postsModel.getLastPostFromTopic(con, id_topic);
 
-  if (lastPostCategory.lenght > 0) {
+  if (lastPostCategory.length > 0) {
     const objLastPost = {
       date: lastPostCategory[0].created_at,
       user: lastPostCategory[0].id_author,
@@ -288,7 +288,7 @@ async function updateLastPost(con, id_topic, id_category) {
     await Category.setLastPost(con, "", id_category);
   }
 
-  if (lastPostTopic.lenght > 0) {
+  if (lastPostTopic.length > 0) {
     const objLastPost = {
       date: lastPostTopic[0].created_at,
       user: lastPostTopic[0].id_author,
