@@ -209,6 +209,7 @@ module.exports = {
             );
 
             req.io.emit("login", { id: row[0].id, reload: true });
+
             return res.status(200).send({
               response: {
                 token: token,

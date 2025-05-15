@@ -23,6 +23,7 @@ const messageRoutes = require("./routes/message");
 const streamRoutes = require("./routes/stream");
 const paymentRoutes = require("./routes/payment");
 const streamMessageRoutes = require("./routes/streamMessage");
+const { log } = require("console");
 
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.json({ limit: "50mb" }));
@@ -48,12 +49,53 @@ app.use(basePath, streamRoutes);
 app.use(basePath, paymentRoutes);
 app.use(basePath, streamMessageRoutes);
 
-// Escuchar conexiones
+const connectedUsers = new Map();
+
 io.on("connection", (socket) => {
   console.log("Usuario conectado:", socket.id);
+
+  socket.on("register-user", (userId) => {
+    console.log("Usuario registrado:", userId);
+    connectedUsers.set(userId, {
+      socketId: socket.id,
+      lastActive: new Date(),
+    });
+
+    io.emit("online-users-count", connectedUsers.size);
+  });
 
   socket.on("disconnect", () => {
     console.log("Usuario desconectado:", socket.id);
   });
+
+  socket.on("heartbeat", (userId) => {
+    if (!userId) {
+      return;
+    }
+
+    if (connectedUsers.has(userId)) {
+      connectedUsers.set(userId, {
+        socketId: socket.id,
+        lastActive: new Date(),
+      });
+    } else {
+      connectedUsers.set(userId, {
+        socketId: socket.id,
+        lastActive: new Date(),
+      });
+    }
+    io.emit("online-users-count", connectedUsers.size);
+  });
 });
+
+setInterval(() => {
+  const now = new Date();
+  for (const [userId, data] of connectedUsers.entries()) {
+    if (now - data.lastActive > 300000) {
+      connectedUsers.delete(userId);
+    }
+  }
+  io.emit("online-users-count", connectedUsers.size);
+}, 60000);
+
 module.exports = httpServer;

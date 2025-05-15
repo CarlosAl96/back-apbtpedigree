@@ -257,7 +257,7 @@ module.exports = {
 
   changeOwner: async (req, res) => {
     const { id } = req.params;
-    const { username, description } = req.body;
+    const { newOwner, description } = req.body;
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
@@ -279,7 +279,7 @@ module.exports = {
       }
 
       const user = await new Promise((resolve, reject) => {
-        User.getByEmailOrUsername(req.con, username, (error, row) => {
+        User.getById(req.con, newOwner, (error, row) => {
           if (error) return reject(error);
           resolve(row);
         });
