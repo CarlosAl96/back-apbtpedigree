@@ -19,7 +19,13 @@ const sendResetEmail = async (email, token) => {
     html: `<p>Haz clic en el siguiente enlace para restablecer tu contraseña: <a href="${resetLink}">Restablecer contraseña</a></p><p>Si no solicitaste esto, ignora este mensaje.</p>`,
   };
 
+  try {
+    
   await transporter.sendMail(mailOptions);
+  } catch (error) {
+    
+  }
+
 };
 
 module.exports = sendResetEmail;
