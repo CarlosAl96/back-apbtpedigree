@@ -54,37 +54,53 @@ const connectedUsers = new Map();
 io.on("connection", (socket) => {
   console.log("Usuario conectado:", socket.id);
 
-  socket.on("register-user", (userId) => {
-    console.log("Usuario registrado:", userId);
+  socket.on("register-user", ({ userId, username }) => {
+    console.log("Usuario registrado:", userId, username);
     connectedUsers.set(userId, {
       socketId: socket.id,
       lastActive: new Date(),
+      username: username || null,
     });
 
-    io.emit("online-users-count", connectedUsers.size);
+    io.emit("online-users-count", {
+      count: connectedUsers.size,
+      users: Array.from(connectedUsers.entries()).map(([id, data]) => ({
+        id,
+        username: data.username,
+      })),
+    });
   });
 
   socket.on("disconnect", () => {
     console.log("Usuario desconectado:", socket.id);
   });
 
-  socket.on("heartbeat", (userId) => {
+  socket.on("heartbeat", ({ userId, username }) => {
     if (!userId) {
       return;
     }
 
     if (connectedUsers.has(userId)) {
       connectedUsers.set(userId, {
+        ...connectedUsers.get(userId),
         socketId: socket.id,
         lastActive: new Date(),
+        username: username || connectedUsers.get(userId).username || null,
       });
     } else {
       connectedUsers.set(userId, {
         socketId: socket.id,
         lastActive: new Date(),
+        username: username || null,
       });
     }
-    io.emit("online-users-count", connectedUsers.size);
+    io.emit("online-users-count", {
+      count: connectedUsers.size,
+      users: Array.from(connectedUsers.entries()).map(([id, data]) => ({
+        id,
+        username: data.username,
+      })),
+    });
   });
 });
 
@@ -95,7 +111,13 @@ setInterval(() => {
       connectedUsers.delete(userId);
     }
   }
-  io.emit("online-users-count", connectedUsers.size);
+  io.emit("online-users-count", {
+    count: connectedUsers.size,
+    users: Array.from(connectedUsers.entries()).map(([id, data]) => ({
+      id,
+      username: data.username,
+    })),
+  });
 }, 60000);
 
 module.exports = httpServer;
