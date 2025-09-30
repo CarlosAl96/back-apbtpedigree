@@ -125,7 +125,11 @@ module.exports = {
           }
 
           await updatePostsInfo(req.con, req.body.id_categories);
-          await updateLastPost(req.con, req.body.id_categories);
+          await updateLastPost(
+            req.con,
+            req.body.id_categories,
+            result.insertId
+          );
           await updatePostsUsers(req.con, req.body.id_author);
           await updateViews(
             req.con,
@@ -237,7 +241,7 @@ module.exports = {
                 }
 
                 await updatePostsInfo(req.con, result[0].id_categories);
-                await updateLastPost(req.con, result[0].id_categories);
+                await updateLastPost(req.con, result[0].id_categories, 0);
                 await updatePostsUsers(req.con, result[0].id_author);
                 req.io.emit("forum", {
                   id_topic: result[0].id_topic,
@@ -471,7 +475,7 @@ async function updatePostsInfo(con, id_category) {
   Category.setPosts(con, countPostCategory[0].count, id_category);
 }
 
-async function updateLastPost(con, id_category) {
+async function updateLastPost(con, id_category, id_topic) {
   const lastPostCategory = await postsModel.getLastPostFromCategory(
     con,
     id_category
@@ -489,9 +493,17 @@ async function updateLastPost(con, id_category) {
 
   await Category.setLastPost(
     con,
-    (objLastPost = !{} ? JSON.stringify(objLastPost) : ""),
+    objLastPost != {} ? JSON.stringify(objLastPost) : "",
     id_category
   );
+
+  if (id_topic > 0) {
+    await topicsModel.setLastPost(
+      con,
+      objLastPost != {} ? JSON.stringify(objLastPost) : "",
+      id_topic
+    );
+  }
 }
 
 async function updatePostsUsers(con, id_user) {
