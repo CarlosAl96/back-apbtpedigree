@@ -8,8 +8,20 @@ module.exports = {
   get: async (req, res) => {
     const { page, size, idTopic, search, previous, order } = req.query;
 
-    const offset = page * size;
-    let condition = `WHERE id_topic=${idTopic} AND is_deleted=false`;
+    const parsedIdTopic = Number.parseInt(idTopic, 10);
+    const parsedPage = Number.parseInt(page, 10) || 0;
+    const parsedSize = Number.parseInt(size, 10) || 20;
+
+    if (!Number.isInteger(parsedIdTopic) || parsedIdTopic <= 0) {
+      return res.status(400).send({
+        response: "El parámetro idTopic es inválido",
+      });
+    }
+
+    const safeOrder = String(order).toUpperCase() === "ASC" ? "ASC" : "DESC";
+
+    const offset = parsedPage * parsedSize;
+    let condition = `WHERE id_topic=${parsedIdTopic} AND is_deleted=false`;
 
     if (search) {
       condition += ` AND (subject LIKE '%${search}%' OR message LIKE '%${search}%') `;
@@ -54,7 +66,7 @@ module.exports = {
       .getCount(req.con, condition)
       .then((rows) => rows[0].count);
 
-    condition += ` ORDER BY first DESC, created_at ${order} LIMIT ${size} OFFSET ${offset}`;
+    condition += ` ORDER BY first DESC, created_at ${safeOrder} LIMIT ${parsedSize} OFFSET ${offset}`;
 
     postsModel.get(req.con, condition, (err, result) => {
       if (err) {
