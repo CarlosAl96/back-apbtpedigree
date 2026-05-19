@@ -22,10 +22,13 @@ module.exports = {
             resolve(result[0]);
           });
         });
-        results[i].last_message = messageResult;
+        results[i].last_message = messageResult || null;
       }
       if (results.length > 1) {
-        results.sort((a, b) => b.last_message.id - a.last_message.id);
+        results.sort(
+          (a, b) =>
+            (b.last_message?.id || 0) - (a.last_message?.id || 0)
+        );
       }
 
       return res.status(200).send({ response: results });
