@@ -112,7 +112,7 @@ module.exports = {
                   id_two: req.body.id_receiver,
                 });
 
-                return res.status(200).send({ response: result.insertId });
+                return res.status(200).send({ response: req.body.id_chat });
               }
             });
           }
