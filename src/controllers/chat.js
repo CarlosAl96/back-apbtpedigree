@@ -13,17 +13,24 @@ module.exports = {
           response: "Ha ocurrido un error trayendo los chats: " + err,
         });
       }
-      for (var i = 0; i < results.length; i++) {
-        var messageResult = await new Promise((resolve, reject) => {
-          message.getByIdChat(req.con, results[i].id, (err, result) => {
-            if (err) {
-              return reject("Ha ocurrido un error: " + err);
-            }
-            resolve(result[0]);
+      try {
+        for (var i = 0; i < results.length; i++) {
+          var messageResult = await new Promise((resolve, reject) => {
+            message.getByIdChat(req.con, results[i].id, (err, result) => {
+              if (err) {
+                return reject("Ha ocurrido un error: " + err);
+              }
+              resolve(result[0]);
+            });
           });
+          results[i].last_message = messageResult || null;
+        }
+      } catch (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo los mensajes: " + error,
         });
-        results[i].last_message = messageResult || null;
       }
+
       if (results.length > 1) {
         results.sort(
           (a, b) =>
@@ -59,18 +66,27 @@ module.exports = {
 
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
-    var chatResult = await new Promise((resolve, reject) => {
-      chat.getById(req.con, id, (err, result) => {
-        if (err) {
-          return reject("Ha ocurrido un error: " + err);
-        }
-        resolve(result[0]);
+    try {
+      var chatResult = await new Promise((resolve, reject) => {
+        chat.getById(req.con, id, (err, result) => {
+          if (err) {
+            return reject("Ha ocurrido un error: " + err);
+          }
+          resolve(result[0]);
+        });
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error eliminando el chat: " + error,
+      });
+    }
     if (typeof chatResult == "string") {
       return res.status(500).send({
         response: "Ha ocurrido un error eliminando el chat: " + chatResult,
       });
+    }
+    if (!chatResult) {
+      return res.status(200).send({ response: "success" });
     }
 
     if (
@@ -140,14 +156,20 @@ module.exports = {
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
 
-    var chatResult = await new Promise((resolve, reject) => {
-      chat.getById(req.con, id, (err, result) => {
-        if (err) {
-          return reject("Ha ocurrido un error: " + err);
-        }
-        resolve(result[0]);
+    try {
+      var chatResult = await new Promise((resolve, reject) => {
+        chat.getById(req.con, id, (err, result) => {
+          if (err) {
+            return reject("Ha ocurrido un error: " + err);
+          }
+          resolve(result[0]);
+        });
       });
-    });
+    } catch (error) {
+      return res.status(500).send({
+        response: "Ha ocurrido un error actualizando el chat: " + error,
+      });
+    }
 
     if (!chatResult) {
       return res.status(200).send({ response: "success" });
@@ -158,6 +180,11 @@ module.exports = {
     }
     if (user.id == chatResult.id_user_two) {
       condition = `viewed_two=true`;
+    }
+    if (!condition) {
+      return res.status(403).send({
+        response: "No estas autorizado",
+      });
     }
 
     chat.update(
@@ -172,7 +199,7 @@ module.exports = {
 
         req.io.emit("getChats", {
           id_one: chatResult.id_user_one,
-          id_two: chatResult.id_user_rwo,
+          id_two: chatResult.id_user_two,
         });
 
         return res.status(200).send({ response: "success" });

@@ -37,9 +37,15 @@ module.exports = {
   },
   store: async (req, res) => {
     if (req.body.id_chat == 0) {
-      const existChat = await chat
-        .getExistChat(req.con, req.body.id_sender, req.body.id_receiver)
-        .then((rows) => rows[0]);
+      try {
+        var existChat = await chat
+          .getExistChat(req.con, req.body.id_sender, req.body.id_receiver)
+          .then((rows) => rows[0]);
+      } catch (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo el chat: " + error,
+        });
+      }
       let condition = "";
       if (existChat) {
         if (req.body.id_sender == existChat.id_user_one) {
@@ -47,6 +53,11 @@ module.exports = {
         }
         if (req.body.id_sender == existChat.id_user_two) {
           condition = "is_deleted_two=false, viewed_one=false";
+        }
+        if (!condition) {
+          return res.status(403).send({
+            response: "No estas autorizado",
+          });
         }
 
         chat.update(
@@ -71,7 +82,7 @@ module.exports = {
                 });
                 req.io.emit("getChats", {
                   id_one: existChat.id_user_one,
-                  id_two: existChat.id_user_rwo,
+                  id_two: existChat.id_user_two,
                 });
 
                 return res.status(200).send({ response: existChat.id });

@@ -18,7 +18,7 @@ module.exports = {
     return con
       .promise()
       .query(
-        `SELECT * FROM chat where id_user_one=${idOne} AND id_user_two=${idTwo} LIMIT 1`
+        `SELECT * FROM chat where (id_user_one=${idOne} AND id_user_two=${idTwo}) OR (id_user_one=${idTwo} AND id_user_two=${idOne}) LIMIT 1`
       )
       .then(([rows]) => rows);
   },
