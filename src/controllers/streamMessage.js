@@ -1,6 +1,7 @@
 const chat = require("../models/chat");
 const StreamMessage = require("../models/streamMessage");
 const { decodeToken } = require("../utils/jwt");
+const { canModerate } = require("../utils/roles");
 
 module.exports = {
   get: (req, res) => {
@@ -18,6 +19,16 @@ module.exports = {
   },
   delete: (req, res) => {
     const { id } = req.params;
+    const { authorization } = req.headers;
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    if (!canModerate(user)) {
+      return res.status(403).send({
+        response: "No tienes permisos para realizar esta acción",
+      });
+    }
+
     StreamMessage.delete(req.con, id)
       .then((result) => {
         req.io.emit("streamMessageDeleted", {

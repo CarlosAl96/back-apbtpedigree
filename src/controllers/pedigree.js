@@ -2,6 +2,7 @@ const Pedigree = require("../models/pedigree");
 const User = require("../models/user");
 const { removeFile } = require("../utils/dir");
 const { decodeToken } = require("../utils/jwt");
+const { canModerate, isRoleModerator } = require("../utils/roles");
 
 module.exports = {
   index: async (req, res) => {
@@ -16,10 +17,14 @@ module.exports = {
       breeder,
       owner,
       userId,
+      superUsersOnly,
     } = req.query;
 
     let condition = "";
     const params = [];
+    const { authorization } = req.headers;
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
 
     if (registeredName) {
       condition = ` WHERE pedigree.name LIKE ?`;
@@ -45,7 +50,15 @@ module.exports = {
       condition = ` WHERE pedigree.owner LIKE ?`;
       params.push(`%${owner}%`);
     }
-    if (userId) {
+    if (superUsersOnly === "true") {
+      if (!canModerate(user)) {
+        return res
+          .status(403)
+          .send({ response: "No tienes permiso para listar estos Pedigrees" });
+      }
+
+      condition = ` WHERE pedigree.user_id IN (SELECT id FROM users WHERE is_superuser = true)`;
+    } else if (userId) {
       condition = ` WHERE pedigree.user_id = ?`;
       params.push(userId);
     }
@@ -193,28 +206,52 @@ module.exports = {
     });
   },
 
-  update: (req, res) => {
+  update: async (req, res) => {
     const { id } = req.params;
+    const { authorization } = req.headers;
 
-    if (req.file) {
-      req.body.img = req.file.filename;
-      if (req.body.old_img) {
-        removeFile(`pedigrees/${req.body.old_img}`);
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    try {
+      const pedigree = await Pedigree.getById(req.con, id).then(
+        (rows) => rows[0]
+      );
+
+      if (!pedigree) {
+        return res.status(404).send({ response: "Pedigree no encontrado" });
       }
+
+      if (pedigree.user_id !== user.id && !canModerate(user)) {
+        return res
+          .status(403)
+          .send({ response: "No tienes permiso para editar este Pedigree" });
+      }
+
+      if (req.file) {
+        req.body.img = req.file.filename;
+        if (req.body.old_img) {
+          removeFile(`pedigrees/${req.body.old_img}`);
+        }
+      }
+
+      Pedigree.updatePedigree(req.con, req.body, id, (error, rows) => {
+        if (error) {
+          console.log(error);
+
+          res.status(500).send({
+            response:
+              "Ha ocurrido un error actualizando el pedigree, error: " + error,
+          });
+        } else {
+          res.status(200).send({ response: rows });
+        }
+      });
+    } catch (error) {
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el Pedigree" });
     }
-
-    Pedigree.updatePedigree(req.con, req.body, id, (error, rows) => {
-      if (error) {
-        console.log(error);
-
-        res.status(500).send({
-          response:
-            "Ha ocurrido un error actualizando el pedigree, error: " + error,
-        });
-      } else {
-        res.status(200).send({ response: rows });
-      }
-    });
   },
 
   delete: async (req, res) => {
@@ -231,6 +268,12 @@ module.exports = {
 
       if (!pedigree) {
         return res.status(404).send({ response: "Pedigree no encontrado" });
+      }
+
+      if (isRoleModerator(user) && !user.is_superuser) {
+        return res
+          .status(403)
+          .send({ response: "No tienes permiso para eliminar este Pedigree" });
       }
 
       if (pedigree.user_id !== user.id && !user.is_superuser) {
@@ -272,7 +315,7 @@ module.exports = {
         return res.status(404).send({ response: "Pedigree no encontrado" });
       }
 
-      if (pedigree.user_id !== userData.id && !userData.is_superuser) {
+      if (pedigree.user_id !== userData.id && !canModerate(userData)) {
         return res
           .status(403)
           .send({ response: "No tienes permiso para editar este Pedigree" });
@@ -326,7 +369,7 @@ module.exports = {
         return res.status(404).send({ response: "Pedigree no encontrado" });
       }
 
-      if (pedigree.user_id !== user.id && !user.is_superuser) {
+      if (pedigree.user_id !== user.id && !canModerate(user)) {
         return res
           .status(403)
           .send({ response: "No tienes permiso para editar este Pedigree" });
@@ -352,29 +395,53 @@ module.exports = {
     }
   },
 
-  updateImg: (req, res) => {
+  updateImg: async (req, res) => {
     const { id } = req.params;
+    const { authorization } = req.headers;
 
-    req.body.img = "";
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
 
-    if (req.body.old_img) {
-      removeFile(`pedigrees/${req.body.old_img}`);
-    }
+    try {
+      const pedigree = await Pedigree.getById(req.con, id).then(
+        (rows) => rows[0]
+      );
 
-    if (req.file) {
-      req.body.img = req.file.filename;
-    }
-
-    Pedigree.updateImg(req.con, req.body.img, id, (error, rows) => {
-      if (error) {
-        res.status(500).send({
-          response:
-            "Ha ocurrido un error actualizando el pedigree, error: " + error,
-        });
-      } else {
-        res.status(200).send({ response: rows });
+      if (!pedigree) {
+        return res.status(404).send({ response: "Pedigree no encontrado" });
       }
-    });
+
+      if (pedigree.user_id !== user.id && !canModerate(user)) {
+        return res
+          .status(403)
+          .send({ response: "No tienes permiso para editar este Pedigree" });
+      }
+
+      req.body.img = "";
+
+      if (req.body.old_img) {
+        removeFile(`pedigrees/${req.body.old_img}`);
+      }
+
+      if (req.file) {
+        req.body.img = req.file.filename;
+      }
+
+      Pedigree.updateImg(req.con, req.body.img, id, (error, rows) => {
+        if (error) {
+          res.status(500).send({
+            response:
+              "Ha ocurrido un error actualizando el pedigree, error: " + error,
+          });
+        } else {
+          res.status(200).send({ response: rows });
+        }
+      });
+    } catch (error) {
+      return res
+        .status(500)
+        .send({ response: "Error al actualizar el Pedigree" });
+    }
   },
   getLogs: (req, res) => {
     const { id } = req.params;

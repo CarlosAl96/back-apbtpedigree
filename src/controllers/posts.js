@@ -3,6 +3,7 @@ const topicsModel = require("../models/topics");
 const Category = require("../models/categories");
 const usersModel = require("../models/user");
 const { decodeToken } = require("../utils/jwt");
+const { canModerate } = require("../utils/roles");
 
 module.exports = {
   get: async (req, res) => {
@@ -185,7 +186,7 @@ module.exports = {
       const moderators = JSON.parse(result[0].moderators);
       const isModerator = moderators.some((rol) => rol.includes(user.username));
 
-      if (result[0].id_author == user.id || user.is_superuser || isModerator) {
+      if (result[0].id_author == user.id || canModerate(user) || isModerator) {
         postsModel.delete(req.con, id, async (err, rowDelete) => {
           if (err) {
             return res.status(500).send({

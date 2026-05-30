@@ -2,6 +2,7 @@ const axios = require("axios");
 const Payment = require("../models/payment");
 const Stream = require("../models/stream");
 const { decodeToken } = require("../utils/jwt");
+const { canModerate } = require("../utils/roles");
 require("dotenv").config();
 
 module.exports = {
@@ -55,7 +56,7 @@ module.exports = {
 
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
-    const isAdmin = user.is_superuser;
+    const isAdmin = canModerate(user);
 
     Stream.getActive(req.con, async (err, result) => {
       if (err) {

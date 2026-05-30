@@ -3,6 +3,7 @@ const Category = require("../models/categories");
 const postsModel = require("../models/posts");
 const usersModel = require("../models/user");
 const { decodeToken } = require("../utils/jwt");
+const { canModerate } = require("../utils/roles");
 
 module.exports = {
   get: async (req, res) => {
@@ -220,7 +221,7 @@ module.exports = {
 
         if (
           result[0].id_author == user.id ||
-          user.is_superuser ||
+          canModerate(user) ||
           isModerator
         ) {
           topicsModel.delete(req.con, id, (err, rowDelete) => {
@@ -313,7 +314,7 @@ module.exports = {
       const moderators = JSON.parse(result[0].moderators);
       const isModerator = moderators.some((rol) => rol.includes(user.username));
 
-      if (user.is_superuser || isModerator) {
+      if (canModerate(user) || isModerator) {
         topicsModel.sticky(req.con, id, (err, row) => {
           if (err) {
             return res.status(500).send({
@@ -353,7 +354,7 @@ module.exports = {
       const moderators = JSON.parse(result[0].moderators);
       const isModerator = moderators.some((rol) => rol.includes(user.username));
 
-      if (result[0].id_author == user.id || user.is_superuser || isModerator) {
+      if (result[0].id_author == user.id || canModerate(user) || isModerator) {
         topicsModel.lock(req.con, id, (err, ress) => {
           if (err) {
             return res.status(500).send({
@@ -393,7 +394,7 @@ module.exports = {
       const moderators = JSON.parse(result[0].moderators);
       const isModerator = moderators.some((rol) => rol.includes(user.username));
 
-      if (user.is_superuser || isModerator) {
+      if (canModerate(user) || isModerator) {
         topicsModel.announcement(req.con, id, (err, ress) => {
           if (err) {
             return res.status(500).send({

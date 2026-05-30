@@ -103,10 +103,10 @@ module.exports = {
       INSERT INTO users (
         username, password, first_name, last_name, email, 
         phone_number, ip, street, city, state, country, 
-        zip_code, picture, is_superuser, stateOnline, 
+        zip_code, picture, is_superuser, is_moderator, stateOnline, 
         adminuser, is_staff, is_active, last_login, 
         date_joined, payment_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)`;
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)`;
 
     const values = [
       data.username,
@@ -122,7 +122,8 @@ module.exports = {
       data.country,
       data.zip_code,
       data.picture !== "" ? data.picture : null,
-      false,
+      data.is_superuser === true || data.is_superuser === "true",
+      data.is_moderator === true || data.is_moderator === "true",
       false,
       false,
       false,

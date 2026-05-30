@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const { decodeToken } = require("../utils/jwt");
 const { removeFile } = require("../utils/dir");
 const sendResetEmail = require("../utils/sendEmail");
+const { canModerate, isAdmin } = require("../utils/roles");
 
 module.exports = {
   index: async (req, res) => {
@@ -86,9 +87,20 @@ module.exports = {
   },
   store: async (req, res) => {
     req.body.picture = "";
+    const { authorization } = req.headers;
+    let requester;
 
-    if (!req.body.is_superuser) {
+    if (authorization) {
+      const token = authorization.replace("Bearer ", "");
+      requester = decodeToken(token).user;
+    }
+
+    if (!isAdmin(requester)) {
       req.body.is_superuser = false;
+      req.body.is_moderator = false;
+    } else {
+      req.body.is_superuser = req.body.is_superuser === "true";
+      req.body.is_moderator = req.body.is_moderator === "true";
     }
 
     if (req.file) {
@@ -260,10 +272,10 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const isAdmin = decodeToken(token).user.is_superuser;
+    const user = decodeToken(token).user;
 
     try {
-      if (isAdmin) {
+      if (isAdmin(user)) {
         User.delete(req.con, id, (error, row) => {
           if (error) {
             return res
@@ -288,10 +300,10 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const isAdmin = decodeToken(token).user.is_superuser;
+    const user = decodeToken(token).user;
 
     try {
-      if (isAdmin) {
+      if (canModerate(user)) {
         User.forumBan(req.con, id, value, (error, row) => {
           if (error) {
             return res
@@ -319,10 +331,10 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const isAdmin = decodeToken(token).user.is_superuser;
+    const user = decodeToken(token).user;
 
     try {
-      if (isAdmin) {
+      if (canModerate(user)) {
         User.streamChatBan(req.con, id, value, (error, row) => {
           if (error) {
             return res
@@ -379,10 +391,10 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const isAdmin = decodeToken(token).user.is_superuser;
+    const user = decodeToken(token).user;
 
     try {
-      if (isAdmin) {
+      if (canModerate(user)) {
         User.disable(req.con, id, value, (error, row) => {
           if (error) {
             return res
@@ -408,8 +420,8 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const isAdmin = decodeToken(token).user.is_superuser;
-    const idUser = decodeToken(token).user.id;
+    const user = decodeToken(token).user;
+    const idUser = user.id;
 
     User.getById(req.con, id, async (error, row) => {
       if (error) {
@@ -423,7 +435,7 @@ module.exports = {
             .send({ response: "No se encontro ningun usuario con este id" });
         }
 
-        if (row[0].id != idUser && !isAdmin) {
+        if (row[0].id != idUser && !canModerate(user)) {
           return res.status(403).send({
             response: "No tienes permisos para realizar esta acción",
           });
@@ -433,11 +445,16 @@ module.exports = {
           req.body.picture = req.file.filename;
         }
 
-        if (req.body.password && isAdmin) {
+        if (req.body.password && canModerate(user)) {
           const genSalt = await bcrypt.genSalt(10);
           req.body.password = await bcrypt.hash(req.body.password, genSalt);
         } else {
           delete req.body.password;
+        }
+
+        if (!isAdmin(user)) {
+          delete req.body.is_superuser;
+          delete req.body.is_moderator;
         }
 
         const fields = Object.keys(req.body)
@@ -693,9 +710,9 @@ module.exports = {
     const { authorization } = req.headers;
 
     const token = authorization.replace("Bearer ", "");
-    const isAdmin = decodeToken(token).user.is_superuser;
+    const user = decodeToken(token).user;
 
-    if (!isAdmin) {
+    if (!isAdmin(user)) {
       return res.status(403).send({
         response: "No estás autorizado",
       });

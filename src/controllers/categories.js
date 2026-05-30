@@ -3,6 +3,7 @@ const postsModel = require("../models/posts");
 const userModel = require("../models/user");
 const topicsModel = require("../models/topics");
 const { decodeToken } = require("../utils/jwt");
+const { canModerate } = require("../utils/roles");
 
 module.exports = {
   get: async (req, res) => {
@@ -178,7 +179,7 @@ module.exports = {
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
 
-    if (user.is_superuser) {
+    if (canModerate(user)) {
       Category.lockOrUnlockCategory(req.con, id, (err, result) => {
         if (err) {
           return res.status(500).send({
