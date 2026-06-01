@@ -9,6 +9,27 @@ const { removeFile } = require("../utils/dir");
 const sendResetEmail = require("../utils/sendEmail");
 const { canModerate, isAdmin } = require("../utils/roles");
 
+function normalizeBoolean(value) {
+  return value === true || value === "true";
+}
+
+function normalizeRoleFlags(body) {
+  if (normalizeBoolean(body.is_superuser)) {
+    body.is_superuser = true;
+    body.is_moderator = false;
+    return;
+  }
+
+  if (normalizeBoolean(body.is_moderator)) {
+    body.is_superuser = false;
+    body.is_moderator = true;
+    return;
+  }
+
+  body.is_superuser = false;
+  body.is_moderator = false;
+}
+
 module.exports = {
   index: async (req, res) => {
     const { page, size, orderBy, search, active } = req.query;
@@ -99,8 +120,7 @@ module.exports = {
       req.body.is_superuser = false;
       req.body.is_moderator = false;
     } else {
-      req.body.is_superuser = req.body.is_superuser === "true";
-      req.body.is_moderator = req.body.is_moderator === "true";
+      normalizeRoleFlags(req.body);
     }
 
     if (req.file) {
@@ -455,6 +475,8 @@ module.exports = {
         if (!isAdmin(user)) {
           delete req.body.is_superuser;
           delete req.body.is_moderator;
+        } else {
+          normalizeRoleFlags(req.body);
         }
 
         const fields = Object.keys(req.body)
