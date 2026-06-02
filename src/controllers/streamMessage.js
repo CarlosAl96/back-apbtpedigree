@@ -57,6 +57,8 @@ module.exports = {
         user_id: req.body.user_id,
         username: req.body.username,
         message: req.body.message,
+        img: req.body.img,
+        audio: req.body.audio,
         updated_at: req.body.updated_at,
         created_at: req.body.created_at,
       });

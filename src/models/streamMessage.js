@@ -17,10 +17,15 @@ module.exports = {
   store: (con, data, callback) => {
     const query = `
       INSERT INTO stream_chat_messages 
-        (user_id, message) 
-      VALUES (?, ?)`;
+        (user_id, message, img, audio) 
+      VALUES (?, ?, ?, ?)`;
 
-    const values = [data.user_id, data.message];
+    const values = [
+      data.user_id,
+      data.message || "",
+      data.img || null,
+      data.audio || null,
+    ];
 
     con.query(query, values, callback);
   },

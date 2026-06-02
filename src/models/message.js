@@ -21,15 +21,16 @@ module.exports = {
   store: (con, data, callback) => {
     const query = `
       INSERT INTO message 
-        (id_chat, id_sender, id_receiver, message, img) 
-      VALUES (?, ?, ?, ?, ?)`;
+        (id_chat, id_sender, id_receiver, message, img, audio) 
+      VALUES (?, ?, ?, ?, ?, ?)`;
 
     const values = [
       data.id_chat,
       data.id_sender,
       data.id_receiver,
-      data.message,
-      data.img,
+      data.message || "",
+      data.img || null,
+      data.audio || null,
     ];
 
     con.query(query, values, callback);

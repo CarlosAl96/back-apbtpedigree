@@ -35,6 +35,8 @@ CREATE TABLE stream_chat_messages (
     stream_id INT NOT NULL,
     user_id INT NOT NULL,
     message TEXT NOT NULL,
+    img longtext NULL DEFAULT NULL,
+    audio longtext NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE,
@@ -79,6 +81,7 @@ CREATE TABLE message (
     created_at timestamp NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     img longtext NULL DEFAULT NULL,
+    audio longtext NULL DEFAULT NULL,
     FOREIGN KEY (id_chat) REFERENCES chat(id) ON DELETE CASCADE,
     FOREIGN KEY (id_sender) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (id_receiver) REFERENCES users(id) ON DELETE CASCADE
