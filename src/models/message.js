@@ -41,6 +41,9 @@ module.exports = {
       callback
     );
   },
+  deleteByAdmin: (con, id, callback) => {
+    con.query(`DELETE FROM message WHERE id=${id}`, callback);
+  },
   get: (con, data, callback) => {
     con.query(
       `SELECT * FROM message WHERE id_chat=${data.id_chat} order by id desc LIMIT ${data.size} OFFSET ${data.offset};`,

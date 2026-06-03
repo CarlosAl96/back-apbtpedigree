@@ -26,6 +26,25 @@ module.exports = {
       )
       .then(([rows]) => rows);
   },
+  getRecentRegistrations: (con) => {
+    return con
+      .promise()
+      .query(
+        `SELECT 
+          pedigree.*,
+          enteredUser.id AS registered_user_id,
+          enteredUser.username,
+          enteredUser.first_name,
+          enteredUser.last_name,
+          enteredUser.email,
+          enteredUser.phone_number
+        FROM dogsBackUp2 AS pedigree
+        LEFT JOIN users AS enteredUser ON pedigree.entered_by = enteredUser.id
+        ORDER BY pedigree.created_at DESC, pedigree.id DESC
+        LIMIT 10`
+      )
+      .then(([rows]) => rows);
+  },
   getById: (con, id) => {
     return con
       .promise()

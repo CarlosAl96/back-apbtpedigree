@@ -201,6 +201,7 @@ module.exports = {
             "Ha ocurrido un error guardando el pedigree, error: " + error,
         });
       } else {
+        req.io.emit("pedigreeRegistered", { reload: true });
         res.status(200).send({ response: rows });
       }
     });

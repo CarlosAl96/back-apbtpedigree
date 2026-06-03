@@ -6,5 +6,6 @@ const app = express.Router();
 app.delete("/chat/delete/:id", userAuthenticated, chatController.delete);
 app.patch("/chat/view/:id", userAuthenticated, chatController.viewChat);
 app.get("/chat/get", userAuthenticated, chatController.get);
+app.get("/chat/support/get", userAuthenticated, chatController.getSupport);
 app.get("/chat/getChatsCount", userAuthenticated, chatController.getChatsCount);
 module.exports = app;

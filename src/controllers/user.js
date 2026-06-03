@@ -756,6 +756,9 @@ module.exports = {
       const paymentsData = await Payment.getData(req.con).then((rows) => rows);
 
       const usersData = await User.getData(req.con).then((rows) => rows);
+      const recentPedigrees = await Pedigree.getRecentRegistrations(
+        req.con
+      ).then((rows) => rows);
 
       return res.status(200).send({
         response: {
@@ -764,6 +767,7 @@ module.exports = {
           pedigrees: pedigrees,
           paymentsData: paymentsData,
           usersData: usersData,
+          recentPedigrees: recentPedigrees,
         },
       });
     } catch (error) {

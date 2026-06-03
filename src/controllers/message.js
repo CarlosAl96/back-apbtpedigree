@@ -2,6 +2,16 @@ const chat = require("../models/chat");
 const message = require("../models/message");
 const { decodeToken } = require("../utils/jwt");
 
+function emitChatEvents(req, idOne, idTwo, chatType) {
+  const event = chatType === "support" ? "supportChat" : "getChats";
+
+  req.io.emit(event, {
+    id_one: idOne,
+    id_two: idTwo,
+    chat_type: chatType,
+  });
+}
+
 module.exports = {
   get: (req, res) => {
     const { id_chat, page, size } = req.query;
@@ -36,11 +46,39 @@ module.exports = {
     });
   },
   store: async (req, res) => {
+    const chatType = req.body.chat_type || "private";
+
+    if (
+      chatType === "support" &&
+      Number(req.body.id_sender) !== 1 &&
+      Number(req.body.id_receiver) !== 1
+    ) {
+      return res.status(403).send({
+        response: "No estas autorizado",
+      });
+    }
+
     if (req.body.id_chat == 0) {
       try {
         var existChat = await chat
-          .getExistChat(req.con, req.body.id_sender, req.body.id_receiver)
+          .getExistChat(
+            req.con,
+            req.body.id_sender,
+            req.body.id_receiver,
+            chatType
+          )
           .then((rows) => rows[0]);
+
+        if (
+          chatType === "support" &&
+          existChat &&
+          ((req.body.id_sender == existChat.id_user_one &&
+            existChat.is_deleted_one) ||
+            (req.body.id_sender == existChat.id_user_two &&
+              existChat.is_deleted_two))
+        ) {
+          existChat = null;
+        }
       } catch (error) {
         return res.status(500).send({
           response: "Ha ocurrido un error trayendo el chat: " + error,
@@ -49,10 +87,16 @@ module.exports = {
       let condition = "";
       if (existChat) {
         if (req.body.id_sender == existChat.id_user_one) {
-          condition = "is_deleted_one=false, viewed_two=false";
+          condition =
+            chatType === "support"
+              ? "is_deleted_one=false, is_deleted_two=false, viewed_two=false"
+              : "is_deleted_one=false, viewed_two=false";
         }
         if (req.body.id_sender == existChat.id_user_two) {
-          condition = "is_deleted_two=false, viewed_one=false";
+          condition =
+            chatType === "support"
+              ? "is_deleted_one=false, is_deleted_two=false, viewed_one=false"
+              : "is_deleted_two=false, viewed_one=false";
         }
         if (!condition) {
           return res.status(403).send({
@@ -79,11 +123,14 @@ module.exports = {
                 req.io.emit("messages", {
                   id_chat: existChat.id,
                   id_sender: req.body.id_sender,
+                  chat_type: chatType,
                 });
-                req.io.emit("getChats", {
-                  id_one: existChat.id_user_one,
-                  id_two: existChat.id_user_two,
-                });
+                emitChatEvents(
+                  req,
+                  existChat.id_user_one,
+                  existChat.id_user_two,
+                  chatType
+                );
 
                 return res.status(200).send({ response: existChat.id });
               }
@@ -100,6 +147,7 @@ module.exports = {
             viewed_two: false,
             is_deleted_one: false,
             is_deleted_two: false,
+            chat_type: chatType,
           },
           (err, result) => {
             if (err) {
@@ -117,11 +165,14 @@ module.exports = {
                 req.io.emit("messages", {
                   id_chat: req.body.id_chat,
                   id_sender: req.body.id_sender,
+                  chat_type: chatType,
                 });
-                req.io.emit("getChats", {
-                  id_one: req.body.id_sender,
-                  id_two: req.body.id_receiver,
-                });
+                emitChatEvents(
+                  req,
+                  req.body.id_sender,
+                  req.body.id_receiver,
+                  chatType
+                );
 
                 return res.status(200).send({ response: req.body.id_chat });
               }
@@ -131,9 +182,15 @@ module.exports = {
       }
     } else {
       if (req.body.im_first) {
-        condition = "viewed_two=false";
+        condition =
+          chatType === "support"
+            ? "is_deleted_two=false, viewed_two=false"
+            : "viewed_two=false";
       } else {
-        condition = "viewed_one=false";
+        condition =
+          chatType === "support"
+            ? "is_deleted_one=false, viewed_one=false"
+            : "viewed_one=false";
       }
 
       chat.update(
@@ -149,11 +206,14 @@ module.exports = {
               req.io.emit("messages", {
                 id_chat: req.body.id_chat,
                 id_sender: req.body.id_sender,
+                chat_type: chatType,
               });
-              req.io.emit("getChats", {
-                id_one: req.body.id_sender,
-                id_two: req.body.id_receiver,
-              });
+              emitChatEvents(
+                req,
+                req.body.id_sender,
+                req.body.id_receiver,
+                chatType
+              );
               return res.status(200).send({ response: req.body.id_chat });
             }
           });
@@ -176,13 +236,25 @@ module.exports = {
       });
     }
 
-    if (user.id != msg.id_sender) {
+    const chatResult = await new Promise((resolve, reject) => {
+      chat.getById(req.con, msg.id_chat, (err, result) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(result[0]);
+      });
+    });
+
+    const canDeleteAsSupportAdmin =
+      user.id === 1 && chatResult?.chat_type === "support";
+
+    if (user.id != msg.id_sender && !canDeleteAsSupportAdmin) {
       return res.status(403).send({
         response: "No estas autorizado",
       });
     }
 
-    message.delete(req.con, id, user.id, async (err, result) => {
+    const onDeleted = async (err, result) => {
       if (err) {
         return res.status(500).send({
           response: "Ha ocurrido un error eliminando el mensaje: " + err,
@@ -191,13 +263,23 @@ module.exports = {
       req.io.emit("messages", {
         id_chat: msg.id_chat,
         id_sender: msg.id_sender,
+        chat_type: chatResult?.chat_type || "private",
       });
-      req.io.emit("getChats", {
-        id_one: msg.id_sender,
-        id_two: msg.id_receiver,
-      });
+
+      emitChatEvents(
+        req,
+        chatResult?.id_user_one || msg.id_sender,
+        chatResult?.id_user_two || msg.id_receiver,
+        chatResult?.chat_type || "private"
+      );
       return res.status(200).send({ response: "success" });
-    });
+    };
+
+    if (canDeleteAsSupportAdmin) {
+      message.deleteByAdmin(req.con, id, onDeleted);
+    } else {
+      message.delete(req.con, id, user.id, onDeleted);
+    }
   },
 };
 

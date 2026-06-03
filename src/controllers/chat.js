@@ -1,6 +1,27 @@
 const chat = require("../models/chat");
 const message = require("../models/message");
 const { decodeToken } = require("../utils/jwt");
+
+async function addLastMessages(req, results) {
+  for (var i = 0; i < results.length; i++) {
+    var messageResult = await new Promise((resolve, reject) => {
+      message.getByIdChat(req.con, results[i].id, (err, result) => {
+        if (err) {
+          return reject("Ha ocurrido un error: " + err);
+        }
+        resolve(result[0]);
+      });
+    });
+    results[i].last_message = messageResult || null;
+  }
+
+  if (results.length > 1) {
+    results.sort((a, b) => (b.last_message?.id || 0) - (a.last_message?.id || 0));
+  }
+
+  return results;
+}
+
 module.exports = {
   get: (req, res) => {
     const { authorization } = req.headers;
@@ -14,28 +35,34 @@ module.exports = {
         });
       }
       try {
-        for (var i = 0; i < results.length; i++) {
-          var messageResult = await new Promise((resolve, reject) => {
-            message.getByIdChat(req.con, results[i].id, (err, result) => {
-              if (err) {
-                return reject("Ha ocurrido un error: " + err);
-              }
-              resolve(result[0]);
-            });
-          });
-          results[i].last_message = messageResult || null;
-        }
+        results = await addLastMessages(req, results);
       } catch (error) {
         return res.status(500).send({
           response: "Ha ocurrido un error trayendo los mensajes: " + error,
         });
       }
 
-      if (results.length > 1) {
-        results.sort(
-          (a, b) =>
-            (b.last_message?.id || 0) - (a.last_message?.id || 0)
-        );
+      return res.status(200).send({ response: results });
+    });
+  },
+  getSupport: (req, res) => {
+    const { authorization } = req.headers;
+    const token = authorization.replace("Bearer ", "");
+    const user = decodeToken(token).user;
+
+    chat.getSupport(req.con, user.id, user.id === 1, async (err, results) => {
+      if (err) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo los chats de soporte: " + err,
+        });
+      }
+
+      try {
+        results = await addLastMessages(req, results);
+      } catch (error) {
+        return res.status(500).send({
+          response: "Ha ocurrido un error trayendo los mensajes: " + error,
+        });
       }
 
       return res.status(200).send({ response: results });
@@ -89,6 +116,33 @@ module.exports = {
       return res.status(200).send({ response: "success" });
     }
 
+    if (chatResult.chat_type === "support" && user.id === 1) {
+      chat.deleteMessagesChat(req.con, id, (err) => {
+        if (err) {
+          return res.status(500).send({
+            response: "Ha ocurrido un error eliminando el chat: " + err,
+          });
+        }
+
+        chat.delete(req.con, id, (err, result) => {
+          if (err) {
+            return res.status(500).send({
+              response: "Ha ocurrido un error eliminando el chat: " + err,
+            });
+          }
+
+          req.io.emit("supportChat", {
+            id_one: chatResult.id_user_one,
+            id_two: chatResult.id_user_two,
+            chat_type: "support",
+          });
+
+          return res.status(200).send({ response: "success" });
+        });
+      });
+      return;
+    }
+
     if (
       user.id != chatResult.id_user_one &&
       user.id != chatResult.id_user_two
@@ -124,6 +178,13 @@ module.exports = {
           if (err) {
             return res.status(500).send({
               response: "Ha ocurrido un error eliminando el chat: " + err,
+            });
+          }
+          if (chatResult.chat_type === "support") {
+            req.io.emit("supportChat", {
+              id_one: chatResult.id_user_one,
+              id_two: chatResult.id_user_two,
+              chat_type: "support",
             });
           }
           res.status(200).send({ response: "success" });
