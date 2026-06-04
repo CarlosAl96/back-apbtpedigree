@@ -3,12 +3,14 @@ const cors = require("cors");
 const path = require("path");
 const dbConnect = require("./config/db");
 const { Server } = require("socket.io");
-const { API_VERSION, API_NAME } = process.env;
+const { API_VERSION = "v1", API_NAME = "api" } = process.env;
 
 const app = express();
+const basePath = `/${API_NAME}/${API_VERSION}`;
 
 const httpServer = require("http").createServer(app);
 const io = new Server(httpServer, {
+  path: `${basePath}/socket.io`,
   cors: {
     origin: "*",
   },
@@ -29,14 +31,13 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.json({ limit: "50mb" }));
 app.use(cors());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(`${basePath}/uploads`, express.static(path.join(__dirname, "uploads")));
 
 app.use((req, res, next) => {
   req.con = dbConnect;
   req.io = io;
   next();
 });
-
-const basePath = `/${API_NAME}/${API_VERSION}`;
 
 app.use(basePath, usersRoutes);
 app.use(basePath, pedigreesRoutes);
