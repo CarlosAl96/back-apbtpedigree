@@ -4,6 +4,33 @@ const { removeFile } = require("../utils/dir");
 const { decodeToken } = require("../utils/jwt");
 const { canModerate, isRoleModerator } = require("../utils/roles");
 
+const pedigreeUppercaseFields = [
+  "name",
+  "beforeNameTitles",
+  "afterNameTitles",
+  "description",
+  "owner",
+  "breeder",
+  "callname",
+  "registration",
+  "color",
+  "conditioned_weight",
+  "chain_weight",
+];
+
+const normalizePedigreeTextFields = (data) => {
+  pedigreeUppercaseFields.forEach((field) => {
+    if (typeof data[field] === "string") {
+      data[field] = data[field].toUpperCase();
+    }
+  });
+
+  return data;
+};
+
+const toUppercase = (value) =>
+  typeof value === "string" ? value.toUpperCase() : value;
+
 module.exports = {
   index: async (req, res) => {
     const {
@@ -28,7 +55,7 @@ module.exports = {
 
     if (registeredName) {
       condition = ` WHERE pedigree.name LIKE ?`;
-      params.push(`%${registeredName}%`);
+      params.push(`%${toUppercase(registeredName)}%`);
     }
     if (dogId) {
       condition = ` WHERE pedigree.id = ?`;
@@ -36,19 +63,19 @@ module.exports = {
     }
     if (registrationNumber) {
       condition = ` WHERE pedigree.registrationNumber LIKE ?`;
-      params.push(`%${registrationNumber}%`);
+      params.push(`%${toUppercase(registrationNumber)}%`);
     }
     if (callname) {
       condition = ` WHERE pedigree.callname LIKE ?`;
-      params.push(`%${callname}%`);
+      params.push(`%${toUppercase(callname)}%`);
     }
     if (breeder) {
       condition = ` WHERE pedigree.breeder LIKE ?`;
-      params.push(`%${breeder}%`);
+      params.push(`%${toUppercase(breeder)}%`);
     }
     if (owner) {
       condition = ` WHERE pedigree.owner LIKE ?`;
-      params.push(`%${owner}%`);
+      params.push(`%${toUppercase(owner)}%`);
     }
     if (superUsersOnly === "true") {
       if (!canModerate(user)) {
@@ -189,6 +216,8 @@ module.exports = {
       req.body.img = req.file.filename;
     }
 
+    normalizePedigreeTextFields(req.body);
+
     console.log(req.body);
 
     Pedigree.savePedigree(req.con, req.body, (error, rows) => {
@@ -235,6 +264,8 @@ module.exports = {
           removeFile(`pedigrees/${req.body.old_img}`);
         }
       }
+
+      normalizePedigreeTextFields(req.body);
 
       Pedigree.updatePedigree(req.con, req.body, id, (error, rows) => {
         if (error) {
