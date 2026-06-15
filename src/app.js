@@ -17,6 +17,7 @@ const io = new Server(httpServer, {
 });
 const usersRoutes = require("./routes/user");
 const pedigreesRoutes = require("./routes/pedigree");
+const pedigreeClaimsRoutes = require("./routes/pedigreeClaim");
 const categoriesRoutes = require("./routes/categories");
 const topicsRoutes = require("./routes/topics");
 const postsRoutes = require("./routes/posts");
@@ -41,6 +42,7 @@ app.use((req, res, next) => {
 
 app.use(basePath, usersRoutes);
 app.use(basePath, pedigreesRoutes);
+app.use(basePath, pedigreeClaimsRoutes);
 app.use(basePath, categoriesRoutes);
 app.use(basePath, topicsRoutes);
 app.use(basePath, postsRoutes);

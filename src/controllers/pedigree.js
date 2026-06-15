@@ -43,6 +43,7 @@ module.exports = {
       callname,
       breeder,
       owner,
+      ownerId,
       userId,
       superUsersOnly,
     } = req.query;
@@ -85,9 +86,9 @@ module.exports = {
       }
 
       condition = ` WHERE pedigree.user_id IN (SELECT id FROM users WHERE is_superuser = true)`;
-    } else if (userId) {
+    } else if (ownerId || userId) {
       condition = ` WHERE pedigree.user_id = ?`;
-      params.push(userId);
+      params.push(ownerId || userId);
     }
 
     const offset = page * size;

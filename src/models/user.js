@@ -2,6 +2,22 @@ module.exports = {
   get: (con, condition, callback) => {
     con.query(`SELECT * FROM users ${condition}`, callback);
   },
+  search: (con, search, callback) => {
+    const value = `%${search}%`;
+
+    con.query(
+      `SELECT id, username, first_name, last_name, email, picture 
+       FROM users 
+       WHERE username LIKE ? 
+          OR email LIKE ? 
+          OR first_name LIKE ? 
+          OR last_name LIKE ?
+       ORDER BY username ASC
+       LIMIT 20`,
+      [value, value, value, value],
+      callback
+    );
+  },
   getCount: (con, condition) => {
     return con
       .promise()

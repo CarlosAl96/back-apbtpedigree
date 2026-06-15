@@ -77,10 +77,9 @@ module.exports = {
   },
 
   searchUsers: (req, res) => {
-    const { search } = req.query;
-    let condition = `WHERE username LIKE '%${search}%'`;
+    const search = req.query.search || "";
 
-    User.get(req.con, condition, (error, rows) => {
+    User.search(req.con, search, (error, rows) => {
       if (error) {
         return res.status(500).send({
           response:
