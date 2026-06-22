@@ -1,7 +1,7 @@
-const Pedigree = require("../models/pedigree");
 const PedigreeClaim = require("../models/pedigreeClaim");
 const { decodeToken } = require("../utils/jwt");
 const { isAdmin } = require("../utils/roles");
+const { sendClaimDecisionEmail } = require("../utils/sendEmail");
 
 const getRequestUser = (req) => {
   const { authorization } = req.headers;
@@ -9,8 +9,26 @@ const getRequestUser = (req) => {
   return decodeToken(token).user;
 };
 
-const getPedigree = (con, pedigreeId) => {
-  return Pedigree.getById(con, pedigreeId).then((rows) => rows[0]);
+const sendDecisionEmailSafely = async (claim, status, adminNote) => {
+  if (!claim?.requester_email) {
+    return;
+  }
+
+  try {
+    await sendClaimDecisionEmail({
+      email: claim.requester_email,
+      username: claim.requester_username,
+      status,
+      pedigreeId: claim.pedigree_id,
+      pedigreeName: claim.pedigree_name,
+      adminNote,
+    });
+  } catch (error) {
+    console.error(
+      `Could not send the ${status} claim email for claim ${claim.id}:`,
+      error
+    );
+  }
 };
 
 module.exports = {
@@ -48,49 +66,129 @@ module.exports = {
 
   store: async (req, res) => {
     const user = getRequestUser(req);
-    const { pedigreeId, message } = req.body;
+    const { pedigreeId, pedigreeIds, message } = req.body;
+    const requestedIds = Array.isArray(pedigreeIds)
+      ? pedigreeIds
+      : pedigreeId !== undefined
+        ? [pedigreeId]
+        : [];
+    const normalizedIds = [
+      ...new Set(requestedIds.map((id) => Number(id))),
+    ];
+    let connection;
 
-    if (!pedigreeId || Number.isNaN(Number(pedigreeId))) {
-      return res.status(400).send({ response: "El id del pedigree es requerido" });
+    if (
+      normalizedIds.length === 0 ||
+      normalizedIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
+    ) {
+      return res.status(400).send({
+        response: "Debes seleccionar al menos un pedigree válido",
+      });
+    }
+
+    if (normalizedIds.length > 50) {
+      return res.status(400).send({
+        response: "Solo puedes reclamar hasta 50 pedigrees a la vez",
+      });
     }
 
     try {
-      const pedigree = await getPedigree(req.con, Number(pedigreeId));
+      connection = await req.con.promise().getConnection();
+      await connection.beginTransaction();
 
-      if (!pedigree) {
-        return res.status(404).send({ response: "Pedigree no encontrado" });
-      }
+      const placeholders = normalizedIds.map(() => "?").join(", ");
+      const [pedigrees] = await connection.query(
+        `SELECT id, name, user_id
+        FROM dogsBackUp2
+        WHERE id IN (${placeholders})
+        FOR UPDATE`,
+        normalizedIds
+      );
 
-      if (pedigree.user_id === user.id) {
-        return res
-          .status(400)
-          .send({ response: "Este Pedigree ya pertenece al usuario" });
-      }
+      const foundIds = new Set(pedigrees.map((pedigree) => pedigree.id));
+      const missingIds = normalizedIds.filter((id) => !foundIds.has(id));
 
-      const pendingClaim = await PedigreeClaim.getPendingByUserAndPedigree(
-        req.con,
-        user.id,
-        Number(pedigreeId)
-      ).then((rows) => rows[0]);
-
-      if (pendingClaim) {
-        return res.status(409).send({
-          response: "Ya existe una solicitud pendiente para este Pedigree",
+      if (missingIds.length > 0) {
+        await connection.rollback();
+        return res.status(404).send({
+          response: `No se encontraron los pedigrees: ${missingIds.join(", ")}`,
         });
       }
 
-      const claim = await PedigreeClaim.create(
-        req.con,
-        user.id,
-        Number(pedigreeId),
-        message
+      const ownedPedigrees = pedigrees.filter(
+        (pedigree) => pedigree.user_id === user.id
       );
 
-      return res.status(200).send({ response: claim });
+      if (ownedPedigrees.length > 0) {
+        await connection.rollback();
+        return res.status(400).send({
+          response: `Los siguientes pedigrees ya te pertenecen: ${ownedPedigrees
+            .map((pedigree) => pedigree.id)
+            .join(", ")}`,
+        });
+      }
+
+      const [pendingClaims] = await connection.query(
+        `SELECT pedigree_id
+        FROM pedigree_claims
+        WHERE user_id = ?
+          AND pedigree_id IN (${placeholders})
+          AND status = 'pending'
+        FOR UPDATE`,
+        [user.id, ...normalizedIds]
+      );
+
+      if (pendingClaims.length > 0) {
+        await connection.rollback();
+        return res.status(409).send({
+          response: `Ya tienes solicitudes pendientes para los pedigrees: ${pendingClaims
+            .map((claim) => claim.pedigree_id)
+            .join(", ")}`,
+        });
+      }
+
+      const createdClaims = [];
+
+      for (const pedigreeIdToClaim of normalizedIds) {
+        const [result] = await connection.query(
+          `INSERT INTO pedigree_claims (user_id, pedigree_id, message)
+          VALUES (?, ?, ?)`,
+          [user.id, pedigreeIdToClaim, message || null]
+        );
+        createdClaims.push({
+          id: result.insertId,
+          pedigreeId: pedigreeIdToClaim,
+        });
+      }
+
+      await connection.commit();
+
+      const onlyClaim = createdClaims.length === 1 ? createdClaims[0] : null;
+      req.io.emit("pedigreeClaimCreated", {
+        claimIds: createdClaims.map((claim) => claim.id),
+        pedigreeIds: createdClaims.map((claim) => claim.pedigreeId),
+        count: createdClaims.length,
+        pedigreeId: onlyClaim?.pedigreeId,
+        pedigreeName: onlyClaim
+          ? pedigrees.find((pedigree) => pedigree.id === onlyClaim.pedigreeId)
+              ?.name
+          : undefined,
+        requesterUsername: user.username,
+      });
+
+      return res.status(200).send({ response: { data: createdClaims } });
     } catch (error) {
+      if (connection) {
+        await connection.rollback();
+      }
+
       return res.status(500).send({
         response: "Ha ocurrido un error creando la solicitud: " + error,
       });
+    } finally {
+      if (connection) {
+        connection.release();
+      }
     }
   },
 
@@ -111,7 +209,8 @@ module.exports = {
       const [claims] = await connection.query(
         `SELECT 
           claim.*,
-          user.username AS requester_username
+          user.username AS requester_username,
+          user.email AS requester_email
         FROM pedigree_claims AS claim
         INNER JOIN users AS user ON claim.user_id = user.id
         WHERE claim.id = ?
@@ -155,6 +254,22 @@ module.exports = {
         return res.status(404).send({ response: "Usuario solicitante no encontrado" });
       }
 
+      claim.requester_email = requester.email;
+      claim.pedigree_name = pedigree.name;
+
+      const [automaticallyDeniedClaims] = await connection.query(
+        `SELECT
+          other_claim.*,
+          other_user.username AS requester_username,
+          other_user.email AS requester_email
+        FROM pedigree_claims AS other_claim
+        INNER JOIN users AS other_user ON other_claim.user_id = other_user.id
+        WHERE other_claim.pedigree_id = ?
+          AND other_claim.id != ?
+          AND other_claim.status = 'pending'`,
+        [claim.pedigree_id, id]
+      );
+
       await connection.query(
         `UPDATE dogsBackUp2 
         SET user_id = ?, entered_by = ?, owner = ?
@@ -175,6 +290,22 @@ module.exports = {
         [admin.id, claim.pedigree_id, id]
       );
       await connection.commit();
+
+      req.io.emit("pedigreeClaimUpdated", {
+        claimId: Number(id),
+        status: "approved",
+      });
+
+      await sendDecisionEmailSafely(claim, "approved", adminNote);
+      await Promise.all(
+        automaticallyDeniedClaims.map((deniedClaim) =>
+          sendDecisionEmailSafely(
+            { ...deniedClaim, pedigree_name: pedigree.name },
+            "denied",
+            "Another claim for this pedigree was approved."
+          )
+        )
+      );
 
       return res
         .status(200)
@@ -225,6 +356,13 @@ module.exports = {
         admin.id,
         adminNote
       );
+
+      req.io.emit("pedigreeClaimUpdated", {
+        claimId: Number(id),
+        status: "denied",
+      });
+
+      await sendDecisionEmailSafely(claim, "denied", adminNote);
 
       return res
         .status(200)

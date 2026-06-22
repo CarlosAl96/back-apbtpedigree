@@ -31,6 +31,11 @@ const normalizePedigreeTextFields = (data) => {
 const toUppercase = (value) =>
   typeof value === "string" ? value.toUpperCase() : value;
 
+const normalizePedigreeSearchName = (value) =>
+  typeof value === "string"
+    ? value.toUpperCase().replace(/['’]/g, "")
+    : value;
+
 module.exports = {
   index: async (req, res) => {
     const {
@@ -43,6 +48,7 @@ module.exports = {
       callname,
       breeder,
       owner,
+      ownerUsername,
       ownerId,
       userId,
       superUsersOnly,
@@ -50,13 +56,24 @@ module.exports = {
 
     let condition = "";
     const params = [];
+
+    if (
+      dogId !== undefined &&
+      dogId !== "" &&
+      !/^\d+$/.test(String(dogId))
+    ) {
+      return res
+        .status(200)
+        .send({ response: { data: [], totalRows: 0 } });
+    }
+
     const { authorization } = req.headers;
     const token = authorization.replace("Bearer ", "");
     const user = decodeToken(token).user;
 
     if (registeredName) {
-      condition = ` WHERE pedigree.name LIKE ?`;
-      params.push(`%${toUppercase(registeredName)}%`);
+      condition = ` WHERE REPLACE(REPLACE(pedigree.name, CHAR(39), ''), '’', '') LIKE ?`;
+      params.push(`%${normalizePedigreeSearchName(registeredName)}%`);
     }
     if (dogId) {
       condition = ` WHERE pedigree.id = ?`;
@@ -77,6 +94,10 @@ module.exports = {
     if (owner) {
       condition = ` WHERE pedigree.owner LIKE ?`;
       params.push(`%${toUppercase(owner)}%`);
+    }
+    if (ownerUsername) {
+      condition = ` WHERE pedigree.user_id IN (SELECT id FROM users WHERE username LIKE ?)`;
+      params.push(`%${ownerUsername}%`);
     }
     if (superUsersOnly === "true") {
       if (!canModerate(user)) {

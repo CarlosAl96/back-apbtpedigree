@@ -51,9 +51,12 @@ module.exports = {
       .query(
         `SELECT 
           claim.*,
-          user.username AS requester_username
+          user.username AS requester_username,
+          user.email AS requester_email,
+          pedigree.name AS pedigree_name
         FROM pedigree_claims AS claim
         INNER JOIN users AS user ON claim.user_id = user.id
+        INNER JOIN dogsBackUp2 AS pedigree ON claim.pedigree_id = pedigree.id
         WHERE claim.id = ?
         LIMIT 1`,
         [id]
