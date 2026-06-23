@@ -18,7 +18,29 @@ const pedigreeUppercaseFields = [
   "chain_weight",
 ];
 
+const optionalTitleFields = ["beforeNameTitles", "afterNameTitles"];
+
+const emptyTitleValues = new Set(["", "NULL", "UNDEFINED"]);
+
+const normalizeOptionalTitle = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmedValue = value.trim();
+
+  return emptyTitleValues.has(trimmedValue.toUpperCase()) ? "" : trimmedValue;
+};
+
 const normalizePedigreeTextFields = (data) => {
+  optionalTitleFields.forEach((field) => {
+    data[field] = normalizeOptionalTitle(data[field]);
+  });
+
   pedigreeUppercaseFields.forEach((field) => {
     if (typeof data[field] === "string") {
       data[field] = data[field].toUpperCase();
@@ -27,6 +49,33 @@ const normalizePedigreeTextFields = (data) => {
 
   return data;
 };
+
+const hideEmptyTitle = (value) =>
+  typeof value === "string" && emptyTitleValues.has(value.trim().toUpperCase())
+    ? ""
+    : value;
+
+const sanitizePedigreeTitles = (pedigree) => {
+  if (!pedigree) {
+    return pedigree;
+  }
+
+  [
+    "beforeNameTitles",
+    "afterNameTitles",
+    "father_beforeNameTitles",
+    "father_afterNameTitles",
+    "mother_beforeNameTitles",
+    "mother_afterNameTitles",
+  ].forEach((field) => {
+    pedigree[field] = hideEmptyTitle(pedigree[field]);
+  });
+
+  return pedigree;
+};
+
+const sanitizePedigreeListTitles = (pedigrees) =>
+  pedigrees.map((pedigree) => sanitizePedigreeTitles(pedigree));
 
 const toUppercase = (value) =>
   typeof value === "string" ? value.toUpperCase() : value;
@@ -131,7 +180,12 @@ module.exports = {
         } else {
           return res
             .status(200)
-            .send({ response: { data: rows, totalRows: pedigreesCount } });
+            .send({
+              response: {
+                data: sanitizePedigreeListTitles(rows),
+                totalRows: pedigreesCount,
+              },
+            });
         }
       });
     } catch (error) {
@@ -147,6 +201,8 @@ module.exports = {
       const pedigree = await Pedigree.getById(req.con, id).then(
         (rows) => rows[0]
       );
+
+      sanitizePedigreeTitles(pedigree);
 
       Pedigree.updateViewsCount(req.con, id, (error, rows) => {});
 
@@ -212,12 +268,12 @@ module.exports = {
       return res.status(200).send({
         response: {
           pedigree,
-          siblings,
-          offsprings,
-          generation1,
-          generation2,
-          generation3,
-          generation4,
+          siblings: sanitizePedigreeListTitles(siblings),
+          offsprings: sanitizePedigreeListTitles(offsprings),
+          generation1: sanitizePedigreeListTitles(generation1),
+          generation2: sanitizePedigreeListTitles(generation2),
+          generation3: sanitizePedigreeListTitles(generation3),
+          generation4: sanitizePedigreeListTitles(generation4),
         },
       });
     } catch (error) {
