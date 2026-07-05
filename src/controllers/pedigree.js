@@ -80,9 +80,182 @@ const sanitizePedigreeListTitles = (pedigrees) =>
 const toUppercase = (value) =>
   typeof value === "string" ? value.toUpperCase() : value;
 
+const escapeHtml = (value) =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const getPedigreeFullName = (pedigree) =>
+  [
+    pedigree.beforeNameTitles,
+    pedigree.name,
+    pedigree.afterNameTitles,
+  ]
+    .filter((value) => typeof value === "string" && value.trim() !== "")
+    .join(" ");
+
+const getRequestOrigin = (req) => {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const protocol =
+    (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)
+      ?.split(",")[0]
+      ?.trim() ||
+    req.protocol ||
+    "https";
+  const host =
+    (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ||
+    req.get("host");
+
+  return `${protocol}://${host}`;
+};
+
+const getFrontendBaseUrl = () =>
+  (process.env.FRONTEND_URL || "https://www.apbtpedigree.com").replace(
+    /\/$/,
+    ""
+  );
+
+const encodePathPart = (value) =>
+  String(value)
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+
+const getPedigreeImageUrl = (req, image) => {
+  if (typeof image === "string" && /^https?:\/\//i.test(image)) {
+    return image;
+  }
+
+  if (typeof image === "string" && image.trim() !== "") {
+    return `${getRequestOrigin(req)}${req.baseUrl}/uploads/pedigrees/${encodePathPart(
+      image.trim()
+    )}`;
+  }
+
+  return `${getFrontendBaseUrl()}/dog.png`;
+};
+
+const getShareTargetUrl = (id, view) => {
+  const path =
+    view === "private"
+      ? `/pedigree/my-pedigrees/${id}`
+      : `/public/pedigree/${id}`;
+
+  return `${getFrontendBaseUrl()}${path}`;
+};
+
+const renderPedigreeShareHtml = ({ title, description, imageUrl, shareUrl, targetUrl }) => `<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(title)}</title>
+    <meta name="description" content="${escapeHtml(description)}" />
+    <link rel="canonical" href="${escapeHtml(targetUrl)}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="APBT Online Pedigree Database" />
+    <meta property="og:title" content="${escapeHtml(title)}" />
+    <meta property="og:description" content="${escapeHtml(description)}" />
+    <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+    <meta property="og:image" content="${escapeHtml(imageUrl)}" />
+    <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />
+    <meta property="og:image:alt" content="${escapeHtml(title)}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escapeHtml(title)}" />
+    <meta name="twitter:description" content="${escapeHtml(description)}" />
+    <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
+    <meta http-equiv="refresh" content="0; url=${escapeHtml(targetUrl)}" />
+    <script>
+      window.location.replace(${JSON.stringify(targetUrl)});
+    </script>
+  </head>
+  <body>
+    <a href="${escapeHtml(targetUrl)}">View pedigree</a>
+  </body>
+</html>`;
+
+const pedigreeSearchIgnoredCharacters = [
+  " ",
+  "\t",
+  "\r",
+  "\n",
+  "!",
+  '"',
+  "#",
+  "$",
+  "%",
+  "&",
+  "'",
+  "(",
+  ")",
+  "*",
+  "+",
+  ",",
+  "-",
+  ".",
+  "/",
+  ":",
+  ";",
+  "<",
+  "=",
+  ">",
+  "?",
+  "@",
+  "[",
+  "\\",
+  "]",
+  "^",
+  "_",
+  "`",
+  "{",
+  "|",
+  "}",
+  "~",
+  "’",
+  "‘",
+  "“",
+  "”",
+  "¡",
+  "¿",
+];
+
+const toSqlCharacter = (character) => {
+  if (character === "'") {
+    return "CHAR(39)";
+  }
+
+  if (character === "\\") {
+    return "CHAR(92)";
+  }
+
+  if (character === "\t") {
+    return "CHAR(9)";
+  }
+
+  if (character === "\r") {
+    return "CHAR(13)";
+  }
+
+  if (character === "\n") {
+    return "CHAR(10)";
+  }
+
+  return `'${character}'`;
+};
+
+const normalizePedigreeSearchSql = (field) =>
+  pedigreeSearchIgnoredCharacters.reduce(
+    (expression, character) =>
+      `REPLACE(${expression}, ${toSqlCharacter(character)}, '')`,
+    `UPPER(${field})`
+  );
+
 const normalizePedigreeSearchName = (value) =>
   typeof value === "string"
-    ? value.toUpperCase().replace(/['’]/g, "")
+    ? value.toUpperCase().replace(/[^\p{L}\p{N}]/gu, "")
     : value;
 
 module.exports = {
@@ -121,7 +294,9 @@ module.exports = {
     const user = decodeToken(token).user;
 
     if (registeredName) {
-      condition = ` WHERE REPLACE(REPLACE(pedigree.name, CHAR(39), ''), '’', '') LIKE ?`;
+      condition = ` WHERE ${normalizePedigreeSearchSql(
+        "pedigree.name"
+      )} LIKE ?`;
       params.push(`%${normalizePedigreeSearchName(registeredName)}%`);
     }
     if (dogId) {
@@ -192,6 +367,44 @@ module.exports = {
       return res.status(500).send({
         response: "Ha ocurrido un error listando los pedigrees: " + error,
       });
+    }
+  },
+  share: async (req, res) => {
+    const { id } = req.params;
+    const view = req.query.view === "private" ? "private" : "public";
+
+    try {
+      const pedigree = await Pedigree.getById(req.con, id).then(
+        (rows) => rows[0]
+      );
+
+      if (!pedigree) {
+        return res.status(404).send("Pedigree not found");
+      }
+
+      sanitizePedigreeTitles(pedigree);
+
+      const pedigreeName = getPedigreeFullName(pedigree) || "APBT Pedigree";
+      const title = `${pedigreeName} - APBT Pedigree`;
+      const description = `View ${pedigreeName} pedigree, bloodline, sire, dam, offspring, and related records.`;
+      const imageUrl = getPedigreeImageUrl(req, pedigree.img);
+      const targetUrl = getShareTargetUrl(pedigree.id, view);
+
+      res.set("Content-Type", "text/html; charset=utf-8");
+      res.set("Cache-Control", "public, max-age=300");
+      return res
+        .status(200)
+        .send(
+          renderPedigreeShareHtml({
+            title,
+            description,
+            imageUrl,
+            shareUrl: targetUrl,
+            targetUrl,
+          })
+        );
+    } catch (error) {
+      return res.status(500).send("Error loading pedigree share preview");
     }
   },
   getById: async (req, res) => {

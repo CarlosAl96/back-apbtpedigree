@@ -29,6 +29,7 @@ const upload = multer({ storage });
 
 app.get("/pedigrees", userAuthenticated, pedigreeController.index);
 
+app.get("/pedigrees/share/:id", pedigreeController.share);
 app.get("/pedigrees/:id", pedigreeController.getById);
 app.get("/pedigrees/:id/logs", userAuthenticated, pedigreeController.getLogs);
 
