@@ -80,6 +80,32 @@ const sanitizePedigreeListTitles = (pedigrees) =>
 const toUppercase = (value) =>
   typeof value === "string" ? value.toUpperCase() : value;
 
+const allowedPedigreeOrderByFields = new Set([
+  "id ASC",
+  "id DESC",
+  "name ASC",
+  "name DESC",
+  "created_at ASC",
+  "created_at DESC",
+  "updated_at ASC",
+  "updated_at DESC",
+  "seen ASC",
+  "seen DESC",
+]);
+
+const getSafePositiveInteger = (value, fallback, maxValue) => {
+  const number = Number(value);
+
+  if (!Number.isInteger(number) || number < 0) {
+    return fallback;
+  }
+
+  return typeof maxValue === "number" ? Math.min(number, maxValue) : number;
+};
+
+const getSafePedigreeOrderBy = (orderBy) =>
+  allowedPedigreeOrderByFields.has(orderBy) ? orderBy : "id ASC";
+
 const escapeHtml = (value) =>
   String(value || "")
     .replace(/&/g, "&amp;")
@@ -87,6 +113,11 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+const escapeXml = escapeHtml;
+
+const escapeJsonForHtml = (value) =>
+  JSON.stringify(value).replace(/</g, "\\u003c");
 
 const getPedigreeFullName = (pedigree) =>
   [
@@ -148,12 +179,101 @@ const getShareTargetUrl = (id, view) => {
   return `${getFrontendBaseUrl()}${path}`;
 };
 
-const renderPedigreeShareHtml = ({ title, description, imageUrl, shareUrl, targetUrl }) => `<!DOCTYPE html>
+const formatDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().split("T")[0];
+};
+
+const formatDateTime = (value) => {
+  if (!value) {
+    return new Date().toISOString();
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+};
+
+const getPedigreeDescription = (pedigree, pedigreeName) => {
+  const details = [
+    pedigree.color ? `Color: ${pedigree.color}` : "",
+    pedigree.sex ? `Sex: ${pedigree.sex}` : "",
+    pedigree.owner ? `Owner: ${pedigree.owner}` : "",
+    pedigree.breeder ? `Breeder: ${pedigree.breeder}` : "",
+  ].filter(Boolean);
+
+  return details.length
+    ? `${pedigreeName} APBT pedigree. ${details.join(". ")}.`
+    : `View ${pedigreeName} APBT pedigree, bloodline, sire, dam, offspring, and related records.`;
+};
+
+const getPedigreeStructuredData = ({
+  pedigree,
+  title,
+  description,
+  imageUrl,
+  targetUrl,
+}) => {
+  const pedigreeName = getPedigreeFullName(pedigree) || "APBT Pedigree";
+  const animal = {
+    "@type": "Animal",
+    "@id": `${targetUrl}#dog`,
+    name: pedigreeName,
+    species: "Dog",
+    breed: "American Pit Bull Terrier",
+    image: imageUrl,
+    url: targetUrl,
+  };
+
+  if (pedigree.sex) animal.gender = pedigree.sex;
+  if (pedigree.color) animal.color = pedigree.color;
+  if (pedigree.birthdate) animal.birthDate = formatDate(pedigree.birthdate);
+
+  const webpage = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${targetUrl}#webpage`,
+    url: targetUrl,
+    name: title,
+    description,
+    image: {
+      "@type": "ImageObject",
+      url: imageUrl,
+      caption: title,
+    },
+    isPartOf: {
+      "@type": "WebSite",
+      name: "APBT Online Pedigree Database",
+      url: `${getFrontendBaseUrl()}/`,
+    },
+    mainEntity: animal,
+  };
+
+  return webpage;
+};
+
+const renderPedigreeHtml = ({
+  title,
+  description,
+  imageUrl,
+  shareUrl,
+  targetUrl,
+  pedigree,
+  shouldRedirect = false,
+  robotsContent = "index, follow, max-snippet:-1, max-image-preview:large",
+}) => `<!DOCTYPE html>
 <html lang="en-US">
   <head>
     <meta charset="utf-8" />
     <title>${escapeHtml(title)}</title>
     <meta name="description" content="${escapeHtml(description)}" />
+    <meta name="robots" content="${escapeHtml(robotsContent)}" />
+    <meta name="googlebot" content="${escapeHtml(robotsContent)}" />
     <link rel="canonical" href="${escapeHtml(targetUrl)}" />
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="APBT Online Pedigree Database" />
@@ -167,15 +287,51 @@ const renderPedigreeShareHtml = ({ title, description, imageUrl, shareUrl, targe
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
-    <meta http-equiv="refresh" content="0; url=${escapeHtml(targetUrl)}" />
-    <script>
-      window.location.replace(${JSON.stringify(targetUrl)});
-    </script>
+    <script type="application/ld+json">${escapeJsonForHtml(
+      getPedigreeStructuredData({
+        pedigree,
+        title,
+        description,
+        imageUrl,
+        targetUrl,
+      })
+    )}</script>
+    ${
+      shouldRedirect
+        ? `<meta http-equiv="refresh" content="0; url=${escapeHtml(
+            targetUrl
+          )}" />
+    <script>window.location.replace(${JSON.stringify(targetUrl)});</script>`
+        : ""
+    }
   </head>
   <body>
-    <a href="${escapeHtml(targetUrl)}">View pedigree</a>
+    <main>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(description)}</p>
+      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" />
+      <p><a href="${escapeHtml(targetUrl)}">View pedigree</a></p>
+    </main>
   </body>
 </html>`;
+
+const getPedigreeSeoPayload = (req, pedigree, view = "public") => {
+  sanitizePedigreeTitles(pedigree);
+
+  const pedigreeName = getPedigreeFullName(pedigree) || "APBT Pedigree";
+  const title = `${pedigreeName} - APBT Pedigree`;
+  const description = getPedigreeDescription(pedigree, pedigreeName);
+  const imageUrl = getPedigreeImageUrl(req, pedigree.img);
+  const targetUrl = getShareTargetUrl(pedigree.id, view);
+
+  return {
+    pedigree,
+    title,
+    description,
+    imageUrl,
+    targetUrl,
+  };
+};
 
 const pedigreeSearchIgnoredCharacters = [
   " ",
@@ -243,6 +399,10 @@ const toSqlCharacter = (character) => {
     return "CHAR(10)";
   }
 
+  if (character === "?") {
+    return "CHAR(63)";
+  }
+
   return `'${character}'`;
 };
 
@@ -257,6 +417,52 @@ const normalizePedigreeSearchName = (value) =>
   typeof value === "string"
     ? value.toUpperCase().replace(/[^\p{L}\p{N}]/gu, "")
     : value;
+
+const getValidPedigreeId = (value) => {
+  const id = Number(value);
+
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+const getParentIds = (pedigrees) => {
+  const ids = new Set();
+
+  pedigrees.forEach((pedigree) => {
+    if (!pedigree) {
+      return;
+    }
+
+    const fatherId = getValidPedigreeId(pedigree.father_id);
+    const motherId = getValidPedigreeId(pedigree.mother_id);
+
+    if (fatherId) ids.add(fatherId);
+    if (motherId) ids.add(motherId);
+  });
+
+  return Array.from(ids);
+};
+
+const getParentGeneration = async (con, pedigrees) => {
+  const parentIds = getParentIds(pedigrees);
+  const parents = await Pedigree.getByIds(con, parentIds);
+  const parentsById = new Map(
+    parents.map((parent) => [Number(parent.id), sanitizePedigreeTitles(parent)])
+  );
+
+  return pedigrees.flatMap((pedigree) => {
+    if (!pedigree) {
+      return [undefined, undefined];
+    }
+
+    const fatherId = getValidPedigreeId(pedigree.father_id);
+    const motherId = getValidPedigreeId(pedigree.mother_id);
+
+    return [
+      fatherId ? parentsById.get(fatherId) : undefined,
+      motherId ? parentsById.get(motherId) : undefined,
+    ];
+  });
+};
 
 module.exports = {
   index: async (req, res) => {
@@ -336,32 +542,24 @@ module.exports = {
       params.push(ownerId || userId);
     }
 
-    const offset = page * size;
+    const safePage = getSafePositiveInteger(page, 0);
+    const safeSize = getSafePositiveInteger(size, 50, 100);
+    const safeOrderBy = getSafePedigreeOrderBy(orderBy);
+    const offset = safePage * safeSize;
 
     try {
-      const pedigreesCount = await Pedigree.getCount(
-        req.con,
-        params,
-        condition
-      ).then((rows) => rows[0].count);
+      const listCondition = `${condition} ORDER BY pedigree.${safeOrderBy} LIMIT ? OFFSET ?`;
+      const [countRows, rows] = await Promise.all([
+        Pedigree.getCount(req.con, params, condition),
+        Pedigree.getAsync(req.con, [...params, safeSize, offset], listCondition),
+      ]);
+      const pedigreesCount = countRows[0].count;
 
-      condition += ` ORDER BY pedigree.${orderBy} LIMIT ${size} OFFSET ${offset}`;
-
-      Pedigree.get(req.con, params, condition, (error, rows) => {
-        if (error) {
-          return res.status(500).send({
-            response: "Ha ocurrido un error listando los pedigrees: " + error,
-          });
-        } else {
-          return res
-            .status(200)
-            .send({
-              response: {
-                data: sanitizePedigreeListTitles(rows),
-                totalRows: pedigreesCount,
-              },
-            });
-        }
+      return res.status(200).send({
+        response: {
+          data: sanitizePedigreeListTitles(rows),
+          totalRows: pedigreesCount,
+        },
       });
     } catch (error) {
       return res.status(500).send({
@@ -373,6 +571,10 @@ module.exports = {
     const { id } = req.params;
     const view = req.query.view === "private" ? "private" : "public";
 
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(404).send("Pedigree not found");
+    }
+
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
         (rows) => rows[0]
@@ -382,101 +584,153 @@ module.exports = {
         return res.status(404).send("Pedigree not found");
       }
 
-      sanitizePedigreeTitles(pedigree);
-
-      const pedigreeName = getPedigreeFullName(pedigree) || "APBT Pedigree";
-      const title = `${pedigreeName} - APBT Pedigree`;
-      const description = `View ${pedigreeName} pedigree, bloodline, sire, dam, offspring, and related records.`;
-      const imageUrl = getPedigreeImageUrl(req, pedigree.img);
-      const targetUrl = getShareTargetUrl(pedigree.id, view);
+      const { title, description, imageUrl, targetUrl } = getPedigreeSeoPayload(
+        req,
+        pedigree,
+        view
+      );
 
       res.set("Content-Type", "text/html; charset=utf-8");
       res.set("Cache-Control", "public, max-age=300");
       return res
         .status(200)
         .send(
-          renderPedigreeShareHtml({
+          renderPedigreeHtml({
             title,
             description,
             imageUrl,
             shareUrl: targetUrl,
             targetUrl,
+            pedigree,
+            shouldRedirect: true,
+            robotsContent:
+              view === "private"
+                ? "noindex, follow"
+                : "index, follow, max-snippet:-1, max-image-preview:large",
           })
         );
     } catch (error) {
       return res.status(500).send("Error loading pedigree share preview");
     }
   },
-  getById: async (req, res) => {
+  seo: async (req, res) => {
     const { id } = req.params;
+    const view = req.query.view === "private" ? "private" : "public";
+
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(404).send("Pedigree not found");
+    }
 
     try {
       const pedigree = await Pedigree.getById(req.con, id).then(
         (rows) => rows[0]
       );
 
+      if (!pedigree) {
+        return res.status(404).send("Pedigree not found");
+      }
+
+      const { title, description, imageUrl, targetUrl } = getPedigreeSeoPayload(
+        req,
+        pedigree,
+        view
+      );
+
+      res.set("Content-Type", "text/html; charset=utf-8");
+      res.set("Cache-Control", "public, max-age=900");
+      return res.status(200).send(
+        renderPedigreeHtml({
+          title,
+          description,
+          imageUrl,
+          shareUrl: targetUrl,
+          targetUrl,
+          pedigree,
+          robotsContent:
+            view === "private"
+              ? "noindex, follow"
+              : "index, follow, max-snippet:-1, max-image-preview:large",
+        })
+      );
+    } catch (error) {
+      return res.status(500).send("Error loading pedigree SEO page");
+    }
+  },
+  sitemap: async (req, res) => {
+    try {
+      const pedigrees = await Pedigree.getPublicSitemapRows(req.con);
+      const urlNodes = pedigrees
+        .map((pedigree) => {
+          sanitizePedigreeTitles(pedigree);
+
+          const title =
+            getPedigreeFullName(pedigree) || `APBT Pedigree ${pedigree.id}`;
+          const loc = `${getFrontendBaseUrl()}/public/pedigree/${pedigree.id}`;
+          const imageUrl = getPedigreeImageUrl(req, pedigree.img);
+          const lastmod = formatDateTime(
+            pedigree.updated_at || pedigree.created_at
+          );
+
+          return `  <url>
+    <loc>${escapeXml(loc)}</loc>
+    <lastmod>${escapeXml(lastmod)}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>${escapeXml(imageUrl)}</image:loc>
+      <image:title>${escapeXml(title)}</image:title>
+      <image:caption>${escapeXml(`${title} APBT pedigree`)}</image:caption>
+    </image:image>
+  </url>`;
+        })
+        .join("\n");
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${urlNodes}
+</urlset>`;
+
+      res.set("Content-Type", "application/xml; charset=utf-8");
+      res.set("Cache-Control", "public, max-age=3600");
+      return res.status(200).send(xml);
+    } catch (error) {
+      return res.status(500).send("Error generating sitemap");
+    }
+  },
+  getById: async (req, res) => {
+    const { id } = req.params;
+    const pedigreeId = getValidPedigreeId(id);
+
+    if (!pedigreeId) {
+      return res.status(404).send({ response: "Pedigree no encontrado" });
+    }
+
+    try {
+      const pedigree = await Pedigree.getById(req.con, pedigreeId).then(
+        (rows) => rows[0]
+      );
+
+      if (!pedigree) {
+        return res.status(404).send({ response: "Pedigree no encontrado" });
+      }
+
       sanitizePedigreeTitles(pedigree);
 
-      Pedigree.updateViewsCount(req.con, id, (error, rows) => {});
+      Pedigree.updateViewsCount(req.con, pedigreeId, () => {});
 
-      let generation1 = [];
-      let generation2 = [];
-      let generation3 = [];
-      let generation4 = [];
-
-      generation1 = await getParents(
-        req.con,
-        pedigree.father_id,
-        pedigree.mother_id
-      );
-
-      for (let i = 0; i < generation1.length; i++) {
-        if (generation1[i] != undefined) {
-          const parents = await getParents(
-            req.con,
-            generation1[i].father_id,
-            generation1[i].mother_id
-          );
-          generation2 = generation2.concat(parents);
-        } else {
-          generation2 = generation2.concat([undefined, undefined]);
-        }
-      }
-
-      for (let i = 0; i < generation2.length; i++) {
-        if (generation2[i] != undefined) {
-          const parents = await getParents(
-            req.con,
-            generation2[i].father_id,
-            generation2[i].mother_id
-          );
-          generation3 = generation3.concat(parents);
-        } else {
-          generation3 = generation3.concat([undefined, undefined]);
-        }
-      }
-
-      for (let i = 0; i < generation3.length; i++) {
-        if (generation3[i] != undefined) {
-          const parents = await getParents(
-            req.con,
-            generation3[i].father_id,
-            generation3[i].mother_id
-          );
-          generation4 = generation4.concat(parents);
-        } else {
-          generation4 = generation4.concat([undefined, undefined]);
-        }
-      }
-
-      const siblings = await Pedigree.getBrothers(
-        req.con,
-        pedigree.id,
-        pedigree.father_id,
-        pedigree.mother_id
-      );
-
-      const offsprings = await Pedigree.getChildren(req.con, pedigree.id);
+      const [generation1, siblings, offsprings] = await Promise.all([
+        getParentGeneration(req.con, [pedigree]),
+        Pedigree.getBrothers(
+          req.con,
+          pedigree.id,
+          pedigree.father_id,
+          pedigree.mother_id
+        ),
+        Pedigree.getChildren(req.con, pedigree.id),
+      ]);
+      const generation2 = await getParentGeneration(req.con, generation1);
+      const generation3 = await getParentGeneration(req.con, generation2);
+      const generation4 = await getParentGeneration(req.con, generation3);
 
       return res.status(200).send({
         response: {
@@ -780,15 +1034,4 @@ module.exports = {
       }
     });
   },
-};
-
-const getParents = async (con, idFather, idMother) => {
-  const father = await Pedigree.getFather(con, idFather).then(
-    (rows) => rows[0]
-  );
-  const mother = await Pedigree.getMother(con, idMother).then(
-    (rows) => rows[0]
-  );
-
-  return [father, mother];
 };

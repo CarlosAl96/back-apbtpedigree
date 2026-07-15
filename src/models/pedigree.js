@@ -1,4 +1,24 @@
 module.exports = {
+  getAsync: (con, params, condition) => {
+    return con
+      .promise()
+      .query(
+        ` SELECT pedigree.*,
+        user.username AS entered_by_name,
+        father.name AS father_name,
+        father.beforeNameTitles AS father_beforeNameTitles,
+        father.afterNameTitles AS father_afterNameTitles,
+        mother.name AS mother_name,
+        mother.beforeNameTitles AS mother_beforeNameTitles,
+        mother.afterNameTitles AS mother_afterNameTitles
+        FROM dogsBackUp2 AS pedigree
+        LEFT JOIN users AS user ON pedigree.entered_by = user.id
+        LEFT JOIN dogsBackUp2 AS father ON pedigree.father_id = father.id
+        LEFT JOIN dogsBackUp2 AS mother ON pedigree.mother_id = mother.id ${condition}`,
+        params
+      )
+      .then(([rows]) => rows);
+  },
   get: (con, params, condition, callback) => {
     con.query(
       ` SELECT pedigree.*, 
@@ -49,7 +69,37 @@ module.exports = {
     return con
       .promise()
       .query(
-        `SELECT dogsBackUp2.*, user.username AS entered_by_name FROM dogsBackUp2 INNER JOIN users AS user ON dogsBackUp2.entered_by = user.id WHERE dogsBackUp2.id=${id}`
+        `SELECT dogsBackUp2.*, user.username AS entered_by_name FROM dogsBackUp2 INNER JOIN users AS user ON dogsBackUp2.entered_by = user.id WHERE dogsBackUp2.id = ? LIMIT 1`,
+        [id]
+      )
+      .then(([rows]) => rows);
+  },
+  getByIds: (con, ids) => {
+    if (!ids.length) {
+      return Promise.resolve([]);
+    }
+
+    return con
+      .promise()
+      .query(`SELECT * FROM dogsBackUp2 WHERE id IN (?)`, [ids])
+      .then(([rows]) => rows);
+  },
+  getPublicSitemapRows: (con) => {
+    return con
+      .promise()
+      .query(
+        `SELECT 
+          id,
+          name,
+          beforeNameTitles,
+          afterNameTitles,
+          img,
+          updated_at,
+          created_at
+        FROM dogsBackUp2
+        WHERE private = false OR private = 0 OR private IS NULL
+        ORDER BY updated_at DESC, created_at DESC, id DESC
+        LIMIT 50000`
       )
       .then(([rows]) => rows);
   },

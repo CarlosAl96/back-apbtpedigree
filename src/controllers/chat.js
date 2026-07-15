@@ -3,17 +3,15 @@ const message = require("../models/message");
 const { decodeToken } = require("../utils/jwt");
 
 async function addLastMessages(req, results) {
-  for (var i = 0; i < results.length; i++) {
-    var messageResult = await new Promise((resolve, reject) => {
-      message.getByIdChat(req.con, results[i].id, (err, result) => {
-        if (err) {
-          return reject("Ha ocurrido un error: " + err);
-        }
-        resolve(result[0]);
-      });
-    });
-    results[i].last_message = messageResult || null;
-  }
+  const chatIds = results.map((chat) => chat.id);
+  const lastMessages = await message.getLastByChatIds(req.con, chatIds);
+  const lastMessagesByChatId = new Map(
+    lastMessages.map((lastMessage) => [lastMessage.id_chat, lastMessage])
+  );
+
+  results.forEach((chat) => {
+    chat.last_message = lastMessagesByChatId.get(chat.id) || null;
+  });
 
   if (results.length > 1) {
     results.sort((a, b) => (b.last_message?.id || 0) - (a.last_message?.id || 0));

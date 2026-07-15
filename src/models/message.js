@@ -5,6 +5,27 @@ module.exports = {
       callback
     );
   },
+  getLastByChatIds: (con, chatIds) => {
+    if (!chatIds.length) {
+      return Promise.resolve([]);
+    }
+
+    return con
+      .promise()
+      .query(
+        `SELECT message.*
+        FROM message
+        INNER JOIN (
+          SELECT id_chat, MAX(id) AS id
+          FROM message
+          WHERE id_chat IN (?)
+          GROUP BY id_chat
+        ) AS latest_message
+          ON latest_message.id = message.id`,
+        [chatIds]
+      )
+      .then(([rows]) => rows);
+  },
   getById: (con, id) => {
     return con
       .promise()
