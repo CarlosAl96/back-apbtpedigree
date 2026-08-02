@@ -98,7 +98,7 @@ module.exports = {
 
       const placeholders = normalizedIds.map(() => "?").join(", ");
       const [pedigrees] = await connection.query(
-        `SELECT id, name, user_id
+        `SELECT id, name, owner, user_id
         FROM dogsBackUp2
         WHERE id IN (${placeholders})
         FOR UPDATE`,
@@ -123,6 +123,20 @@ module.exports = {
         await connection.rollback();
         return res.status(400).send({
           response: `Los siguientes pedigrees ya te pertenecen: ${ownedPedigrees
+            .map((pedigree) => pedigree.id)
+            .join(", ")}`,
+        });
+      }
+
+      const pedigreesWithOwner = pedigrees.filter(
+        (pedigree) =>
+          typeof pedigree.owner === "string" && pedigree.owner.trim() !== ""
+      );
+
+      if (pedigreesWithOwner.length > 0) {
+        await connection.rollback();
+        return res.status(400).send({
+          response: `Solo puedes reclamar pedigrees sin owner. Estos pedigrees ya tienen owner: ${pedigreesWithOwner
             .map((pedigree) => pedigree.id)
             .join(", ")}`,
         });
@@ -241,6 +255,14 @@ module.exports = {
       if (!pedigree) {
         await connection.rollback();
         return res.status(404).send({ response: "Pedigree no encontrado" });
+      }
+
+      if (typeof pedigree.owner === "string" && pedigree.owner.trim() !== "") {
+        await connection.rollback();
+        return res.status(400).send({
+          response:
+            "Este pedigree ya tiene owner. No se puede aprobar el reclamo.",
+        });
       }
 
       const [requesters] = await connection.query(

@@ -10,6 +10,8 @@ module.exports = {
           pedigree.afterNameTitles AS pedigree_afterNameTitles,
           pedigree.owner AS current_owner,
           pedigree.user_id AS current_owner_id,
+          claim_summary.pending_claimants_count,
+          claim_summary.total_claimants_count,
           user.username AS requester_username,
           user.first_name AS requester_first_name,
           user.last_name AS requester_last_name,
@@ -18,6 +20,14 @@ module.exports = {
         INNER JOIN dogsBackUp2 AS pedigree ON claim.pedigree_id = pedigree.id
         INNER JOIN users AS user ON claim.user_id = user.id
         LEFT JOIN users AS reviewer ON claim.reviewed_by = reviewer.id
+        LEFT JOIN (
+          SELECT
+            pedigree_id,
+            SUM(status = 'pending') AS pending_claimants_count,
+            COUNT(*) AS total_claimants_count
+          FROM pedigree_claims
+          GROUP BY pedigree_id
+        ) AS claim_summary ON claim_summary.pedigree_id = claim.pedigree_id
         ORDER BY claim.created_at DESC, claim.id DESC`
       )
       .then(([rows]) => rows);
@@ -73,6 +83,18 @@ module.exports = {
         WHERE user_id = ? AND pedigree_id = ? AND status = 'pending'
         LIMIT 1`,
         [userId, pedigreeId]
+      )
+      .then(([rows]) => rows);
+  },
+
+  getPendingCountByPedigree: (con, pedigreeId) => {
+    return con
+      .promise()
+      .query(
+        `SELECT COUNT(*) AS count
+        FROM pedigree_claims
+        WHERE pedigree_id = ? AND status = 'pending'`,
+        [pedigreeId]
       )
       .then(([rows]) => rows);
   },

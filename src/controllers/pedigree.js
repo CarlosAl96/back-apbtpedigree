@@ -1,4 +1,5 @@
 const Pedigree = require("../models/pedigree");
+const PedigreeClaim = require("../models/pedigreeClaim");
 const User = require("../models/user");
 const { removeFile } = require("../utils/dir");
 const { decodeToken } = require("../utils/jwt");
@@ -718,7 +719,7 @@ ${urlNodes}
 
       Pedigree.updateViewsCount(req.con, pedigreeId, () => {});
 
-      const [generation1, siblings, offsprings] = await Promise.all([
+      const [generation1, siblings, offsprings, pendingClaimRows] = await Promise.all([
         getParentGeneration(req.con, [pedigree]),
         Pedigree.getBrothers(
           req.con,
@@ -727,6 +728,7 @@ ${urlNodes}
           pedigree.mother_id
         ),
         Pedigree.getChildren(req.con, pedigree.id),
+        PedigreeClaim.getPendingCountByPedigree(req.con, pedigree.id),
       ]);
       const generation2 = await getParentGeneration(req.con, generation1);
       const generation3 = await getParentGeneration(req.con, generation2);
@@ -741,6 +743,7 @@ ${urlNodes}
           generation2: sanitizePedigreeListTitles(generation2),
           generation3: sanitizePedigreeListTitles(generation3),
           generation4: sanitizePedigreeListTitles(generation4),
+          pendingClaimsCount: pendingClaimRows[0]?.count || 0,
         },
       });
     } catch (error) {
